@@ -29,3 +29,50 @@ export {
   type SpotifyPlayerContextValue,
   type PlaybackState as PlayerPlaybackState,
 } from "./player-provider";
+
+// Spotify API functions
+export * from "./api";
+
+// Spotify React hooks
+export {
+  // User
+  useCurrentUser,
+  useTopTracks,
+  useTopArtists,
+  // Playlists
+  useMyPlaylists,
+  useAllMyPlaylists,
+  usePlaylist,
+  usePlaylistTracks,
+  useCreatePlaylist,
+  useAddTracksToPlaylist,
+  useRemoveTracksFromPlaylist,
+  // Devices
+  useDevices,
+  usePlaybackState,
+  useCurrentlyPlaying,
+  useTransferPlayback,
+  // Search
+  useSearch,
+  // Library
+  useSavedTracks,
+  useSaveTracks,
+  useRemoveTracks,
+  useCheckSavedTracks,
+  useSavedAlbums,
+  useRecentlyPlayed,
+  // Artists
+  useArtist,
+  useArtistTopTracks,
+  useArtistAlbums,
+  useRelatedArtists,
+  useFollowedArtists,
+  // Albums
+  useAlbum,
+  useAlbumTracks,
+  // Tracks
+  useTrack,
+  // Recommendations
+  useRecommendations,
+  useAvailableGenreSeeds,
+} from "./hooks";

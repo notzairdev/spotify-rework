@@ -1,9 +1,24 @@
 "use client";
 
+import {
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Heart,
+  Volume2,
+  VolumeX,
+  Volume1,
+  Mic2,
+  ListMusic,
+  MonitorSpeaker,
+  Shuffle,
+  Repeat,
+} from "lucide-react";
+import { Slider } from "@/components/ui/slider";
 import { useSpotifyPlayer } from "@/lib/spotify";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { Pause, Play, SkipBack, SkipForward, Volume2 } from "lucide-react";
 
 export function PlayerBar() {
   const { isAuthenticated, isPremium } = useAuth();
@@ -16,7 +31,21 @@ export function PlayerBar() {
     previousTrack,
     setVolume,
     transferPlayback,
+    seek,
   } = useSpotifyPlayer();
+
+  // Calculate current progress percentage
+  const currentProgress =
+    state?.position != null && state?.duration != null && state.duration > 0
+      ? (state.position / state.duration) * 100
+      : 0;
+
+  const handleSeek = (percentage: number) => {
+    if (state?.duration) {
+      const positionMs = (percentage / 100) * state.duration;
+      seek(positionMs);
+    }
+  };
 
   // Don't render if not authenticated
   if (!isAuthenticated) {
@@ -27,7 +56,9 @@ export function PlayerBar() {
   if (!isPremium) {
     return (
       <div className="fixed bottom-0 left-0 right-0 h-20 bg-card border-t flex items-center justify-center">
-        <p className="text-muted-foreground">Spotify Premium required for playback</p>
+        <p className="text-muted-foreground">
+          Spotify Premium required for playback
+        </p>
       </div>
     );
   }
@@ -38,14 +69,17 @@ export function PlayerBar() {
     return (
       <div className="fixed bottom-0 left-0 right-0 h-20 bg-card border-t flex items-center justify-center px-4">
         <div className="text-center">
-          <p className={isEMEError ? "text-muted-foreground" : "text-destructive"}>
-            {isEMEError 
-              ? "Playback not available on this platform" 
-              : error}
+          <p
+            className={
+              isEMEError ? "text-muted-foreground" : "text-destructive"
+            }
+          >
+            {isEMEError ? "Playback not available on this platform" : error}
           </p>
           {isEMEError && (
             <p className="text-xs text-muted-foreground mt-1">
-              Use Spotify Connect from your phone or the official app to control playback
+              Use Spotify Connect from your phone or the official app to control
+              playback
             </p>
           )}
         </div>
@@ -58,7 +92,9 @@ export function PlayerBar() {
     return (
       <div className="fixed bottom-0 left-0 right-0 h-20 bg-card border-t flex items-center justify-center">
         <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        <span className="ml-2 text-muted-foreground">Connecting to Spotify...</span>
+        <span className="ml-2 text-muted-foreground">
+          Connecting to Spotify...
+        </span>
       </div>
     );
   }
@@ -67,82 +103,117 @@ export function PlayerBar() {
   const albumArt = track?.album.images[0]?.url;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 h-20 bg-card border-t flex items-center px-4">
-      {/* Track Info */}
-      <div className="flex items-center gap-3 flex-1 min-w-0">
-        {albumArt ? (
-          <img
-            src={albumArt}
-            alt={track?.album.name}
-            className="h-14 w-14 rounded shadow-sm"
+    <div className="fixed bottom-0 left-0 right-0 h-18 border-t flex flex-col">
+      {/* Progress bar - clickable area is taller than visual bar */}
+      <div className="relative h-3 -mt-1.5 group cursor-pointer w-full flex items-center">
+        {/* Visual bar container */}
+        <div className="absolute left-0 right-0 h-1 top-1/2 -translate-y-1/2">
+          <div className="absolute inset-0 bg-white/[0.04]" />
+          <div
+            className="absolute left-0 top-0 h-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-150"
+            style={{ width: `${currentProgress}%` }}
           />
-        ) : (
-          <div className="h-14 w-14 rounded bg-muted flex items-center justify-center">
-            <Volume2 className="h-6 w-6 text-muted-foreground" />
-          </div>
-        )}
-        {track ? (
-          <div className="min-w-0">
-            <p className="font-medium truncate">{track.name}</p>
-            <p className="text-sm text-muted-foreground truncate">
-              {track.artists.join(", ")}
-            </p>
-          </div>
-        ) : (
-          <div className="min-w-0">
-            <p className="text-muted-foreground">No track playing</p>
-            <button
-              onClick={transferPlayback}
-              className="text-sm text-primary hover:underline"
-            >
-              Transfer playback here
-            </button>
-          </div>
-        )}
+        </div>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          value={currentProgress}
+          onChange={(e) => handleSeek(Number(e.target.value))}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        />
+        {/* Hover thumb */}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-primary rounded-full shadow-lg shadow-primary/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+          style={{ left: `${currentProgress}%`, marginLeft: "-6px" }}
+        />
       </div>
-
-      {/* Controls */}
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={previousTrack}>
-          <SkipBack className="h-5 w-5" />
-        </Button>
-        <Button
-          variant="default"
-          size="icon"
-          className="h-10 w-10 rounded-full"
-          onClick={togglePlay}
-        >
-          {state?.isPlaying ? (
-            <Pause className="h-5 w-5" />
-          ) : (
-            <Play className="h-5 w-5 ml-0.5" />
-          )}
-        </Button>
-        <Button variant="ghost" size="icon" onClick={nextTrack}>
-          <SkipForward className="h-5 w-5" />
-        </Button>
-      </div>
-
-      {/* Progress (simplified) */}
-      <div className="flex-1 flex items-center justify-end gap-2">
-        {state && (
-          <>
-            <span className="text-xs text-muted-foreground">
-              {formatTime(state.position)}
-            </span>
-            <div className="w-24 h-1 bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full bg-primary transition-all"
-                style={{
-                  width: `${(state.position / state.duration) * 100}%`,
-                }}
-              />
+      <div className="h-18 px-5 flex items-center gap-6">
+        {/* Track Info */}
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          {albumArt ? (
+            <img
+              src={albumArt}
+              alt={track?.album.name}
+              className="h-12 w-12 rounded-full shadow-sm"
+            />
+          ) : null}
+          {track ? (
+            <div className="min-w-0">
+              <p className="text-[13px] font-medium text-foreground hover:underline decoration-foreground/30 truncate block leading-tight">
+                {track.name}
+              </p>
+              <p className="text-[11px] text-muted-foreground hover:text-foreground truncate block transition-colors leading-tight mt-0.5">
+                {track.artists.join(", ")}
+              </p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="text-[10px] font-mono text-muted-foreground/70">
+                  {formatTime(state?.position ?? 0)}
+                </span>
+                <span className="text-[10px] text-muted-foreground/40">/</span>
+                <span className="text-[10px] font-mono text-muted-foreground/50">
+                  {formatTime(state?.duration ?? 0)}
+                </span>
+              </div>
             </div>
-            <span className="text-xs text-muted-foreground">
-              {formatTime(state.duration)}
-            </span>
-          </>
-        )}
+          ) : (
+            <div className="min-w-0">
+              <p className="text-muted-foreground text-[13px]">
+                Currently no track playing
+              </p>
+              <button
+                onClick={transferPlayback}
+                className="text-[10px] text-primary hover:underline"
+              >
+                Transfer playback here
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Controls */}
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={previousTrack}>
+            <SkipBack className="h-5 w-5" />
+          </Button>
+          <Button
+            variant="default"
+            size="icon"
+            className="h-10 w-10 rounded-full"
+            onClick={togglePlay}
+          >
+            {state?.isPlaying ? (
+              <Pause className="h-5 w-5" />
+            ) : (
+              <Play className="h-5 w-5 ml-0.5" />
+            )}
+          </Button>
+          <Button variant="ghost" size="icon" onClick={nextTrack}>
+            <SkipForward className="h-5 w-5" />
+          </Button>
+        </div>
+
+        {/* Progress (simplified) */}
+        <div className="flex-1 flex items-center justify-end gap-2">
+          {state && (
+            <>
+              <span className="text-xs text-muted-foreground">
+                {formatTime(state.position)}
+              </span>
+              <div className="w-24 h-1 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all"
+                  style={{
+                    width: `${(state.position / state.duration) * 100}%`,
+                  }}
+                />
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {formatTime(state.duration)}
+              </span>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -380,6 +380,31 @@ export function SpotifyPlayerProvider({
     setRetryCount((c) => c + 1);
   }, []);
 
+  // Update position periodically while playing
+  useEffect(() => {
+    if (!player || !state?.isPlaying) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const currentState = await player.getCurrentState();
+        if (currentState && !currentState.paused) {
+          setState((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  position: currentState.position,
+                }
+              : null
+          );
+        }
+      } catch (e) {
+        // Ignore errors during position polling
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [player, state?.isPlaying]);
+
   // Playback controls
   const play = useCallback(
     async (uris?: string[], contextUri?: string, offset?: number) => {

@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 
 import { Providers } from "@/components/wrapped/providers";
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
-const fontMono = Inter({subsets:['latin'],variable:'--font-mono'});
+const fontMono = Geist_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-mono",
+});
 
 export const metadata: Metadata = {
   title: "Spotify Rework",
@@ -19,9 +23,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${fontMono.variable}`} suppressHydrationWarning>
       <body
-        className={`antialiased ${fontMono.variable}`}
+        className={`antialiased`}
       >
         <Providers>
           {children}
