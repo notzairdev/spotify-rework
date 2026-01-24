@@ -6,7 +6,7 @@ const internalHost = process.env.TAURI_DEV_HOST || 'localhost';
 
 
 const nextConfig: NextConfig = {
-  output: 'export',
+  devIndicators: false,
   // Note: This feature is required to use the Next.js Image component in SSG mode.
   // See https://nextjs.org/docs/messages/export-image-api for different workarounds.
   images: {

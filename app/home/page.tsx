@@ -1,6 +1,7 @@
 "use client";
 
 import { Play, Clock, TrendingUp, Music, Disc3 } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { 
   useMyPlaylists, 
@@ -33,14 +34,6 @@ export default function HomePage() {
     .slice(0, 6) ?? [];
 
   // Handle play
-  const handlePlayPlaylist = async (uri: string) => {
-    try {
-      await startPlayback({ contextUri: uri });
-    } catch (e) {
-      console.error("Failed to play:", e);
-    }
-  };
-
   const handlePlayTrack = async (uri: string) => {
     try {
       await startPlayback({ uris: [uri] });
@@ -82,9 +75,9 @@ export default function HomePage() {
         {playlistsLoading ? (
           <div className="aspect-4/3 rounded-3xl bg-muted animate-pulse" />
         ) : firstPlaylist ? (
-          <div
+          <Link
+            href={`/playlist/${firstPlaylist.id}`}
             className="group relative aspect-4/3 rounded-3xl overflow-hidden cursor-pointer transition-transform hover:scale-[1.02]"
-            onClick={() => handlePlayPlaylist(firstPlaylist.uri)}
           >
             {firstPlaylist.images[0]?.url ? (
               <img
@@ -106,15 +99,8 @@ export default function HomePage() {
               <p className="text-white/60 text-sm mb-4">
                 {firstPlaylist.tracks.total} songs
               </p>
-              <Button
-                size="lg"
-                className="opacity-0 group-hover:opacity-100 transition-opacity rounded-full"
-              >
-                <Play className="w-5 h-5 mr-2" fill="currentColor" />
-                Reproducir
-              </Button>
             </div>
-          </div>
+          </Link>
         ) : null}
 
         {/* Other playlists */}
@@ -125,9 +111,9 @@ export default function HomePage() {
             ))
           ) : (
             otherPlaylists.map((playlist, i) => (
-              <div
+              <Link
                 key={playlist.id}
-                onClick={() => handlePlayPlaylist(playlist.uri)}
+                href={`/playlist/${playlist.id}`}
                 className="group flex items-center gap-5 p-4 rounded-2xl bg-card/50 hover:bg-card transition-all cursor-pointer"
                 style={{ animationDelay: `${i * 100}ms` }}
               >
@@ -150,14 +136,7 @@ export default function HomePage() {
                     {playlist.description || `${playlist.tracks.total} canciones`}
                   </p>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
-                >
-                  <Play className="w-5 h-5" fill="currentColor" />
-                </Button>
-              </div>
+              </Link>
             ))
           )}
         </div>
