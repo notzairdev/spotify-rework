@@ -4,6 +4,7 @@ import { FC, ReactNode } from 'react';
 import { ThemeProvider } from './theme-provider';
 import { AuthProvider } from '@/lib/auth';
 import { SpotifyPlayerProvider } from '@/lib/spotify';
+import { LyricsProvider } from '@/lib/lrclib';
 import { AppGate } from '@/components/app-gate';
 
 interface ProvidersProps {
@@ -12,12 +13,14 @@ interface ProvidersProps {
 
 export const Providers: FC<ProvidersProps> = ({ children }) => {
   return (
-    <ThemeProvider attribute="class" defaultTheme='dark' disableTransitionOnChange>
+    <ThemeProvider attribute="class" defaultTheme='dark'>
       <AuthProvider>
         <SpotifyPlayerProvider>
-          <AppGate>
-            {children}
-          </AppGate>
+          <LyricsProvider>
+            <AppGate>
+              {children}
+            </AppGate>
+          </LyricsProvider>
         </SpotifyPlayerProvider>
       </AuthProvider>
     </ThemeProvider>

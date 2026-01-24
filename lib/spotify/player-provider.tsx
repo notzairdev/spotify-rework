@@ -70,6 +70,10 @@ export interface SpotifyPlayerContextValue {
   setVolume: (volume: number) => Promise<void>;
   /** Transfer playback to this device */
   transferPlayback: () => Promise<void>;
+  /** Toggle shuffle mode */
+  toggleShuffle: () => Promise<void>;
+  /** Set repeat mode (cycles: off -> context -> track -> off) */
+  cycleRepeatMode: () => Promise<void>;
   /** Retry initialization */
   retry: () => void;
 }
@@ -317,7 +321,7 @@ export function SpotifyPlayerProvider({
         }
 
         const currentTrack = sdkState.track_window.current_track;
-        setState({
+        setState((prev) => ({
           isPlaying: !sdkState.paused,
           isPaused: sdkState.paused,
           duration: sdkState.duration,
@@ -337,7 +341,7 @@ export function SpotifyPlayerProvider({
                 },
               }
             : null,
-          volume: initialVolume,
+          volume: prev?.volume ?? initialVolume,
           shuffle: sdkState.shuffle,
           repeatMode:
             sdkState.repeat_mode === 0
@@ -345,7 +349,7 @@ export function SpotifyPlayerProvider({
               : sdkState.repeat_mode === 1
               ? "context"
               : "track",
-        });
+        }));
       });
 
       // Connect to Spotify
@@ -400,7 +404,7 @@ export function SpotifyPlayerProvider({
       } catch (e) {
         // Ignore errors during position polling
       }
-    }, 1000);
+    }, 250); // Update every 250ms for smoother lyrics sync
 
     return () => clearInterval(interval);
   }, [player, state?.isPlaying]);
@@ -447,8 +451,13 @@ export function SpotifyPlayerProvider({
   }, [player]);
 
   const previousTrack = useCallback(async () => {
-    await player?.previousTrack();
-  }, [player]);
+    // If position > 3 seconds, restart the current track instead
+    if (state?.position && state.position > 3000) {
+      await player?.seek(0);
+    } else {
+      await player?.previousTrack();
+    }
+  }, [player, state?.position]);
 
   const seek = useCallback(
     async (positionMs: number) => {
@@ -460,6 +469,8 @@ export function SpotifyPlayerProvider({
   const setVolume = useCallback(
     async (volume: number) => {
       await player?.setVolume(volume);
+      // Update local state immediately
+      setState((prev) => prev ? { ...prev, volume } : null);
     },
     [player]
   );
@@ -484,6 +495,33 @@ export function SpotifyPlayerProvider({
     });
   }, [deviceId, getAccessToken]);
 
+  const toggleShuffle = useCallback(async () => {
+    if (!deviceId) return;
+    const token = await getAccessToken();
+    const newState = !state?.shuffle;
+    await fetch(`https://api.spotify.com/v1/me/player/shuffle?state=${newState}&device_id=${deviceId}`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    // Update local state optimistically
+    setState(prev => prev ? { ...prev, shuffle: newState } : null);
+  }, [deviceId, getAccessToken, state?.shuffle]);
+
+  const cycleRepeatMode = useCallback(async () => {
+    if (!deviceId) return;
+    const token = await getAccessToken();
+    // Cycle: off -> context -> track -> off
+    const modes: Array<"off" | "context" | "track"> = ["off", "context", "track"];
+    const currentIndex = modes.indexOf(state?.repeatMode ?? "off");
+    const nextMode = modes[(currentIndex + 1) % 3];
+    await fetch(`https://api.spotify.com/v1/me/player/repeat?state=${nextMode}&device_id=${deviceId}`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    // Update local state optimistically
+    setState(prev => prev ? { ...prev, repeatMode: nextMode } : null);
+  }, [deviceId, getAccessToken, state?.repeatMode]);
+
   const value = useMemo<SpotifyPlayerContextValue>(
     () => ({
       player,
@@ -500,6 +538,8 @@ export function SpotifyPlayerProvider({
       seek,
       setVolume,
       transferPlayback,
+      toggleShuffle,
+      cycleRepeatMode,
       retry,
     }),
     [
@@ -517,6 +557,8 @@ export function SpotifyPlayerProvider({
       seek,
       setVolume,
       transferPlayback,
+      toggleShuffle,
+      cycleRepeatMode,
       retry,
     ]
   );

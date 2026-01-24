@@ -3,6 +3,7 @@ import { Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 
 import { Providers } from "@/components/wrapped/providers";
+import { cn } from "@/lib/utils";
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
@@ -23,7 +24,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${fontMono.variable}`} suppressHydrationWarning>
+    <html lang="en" className={cn(inter.variable, fontMono.variable, inter.variable)} suppressHydrationWarning>
       <body
         className={`antialiased`}
       >

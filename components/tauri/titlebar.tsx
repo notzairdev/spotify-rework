@@ -40,7 +40,7 @@ export function Titlebar() {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 select-none">
       <div
-        className="h-12 flex items-center px-4 bg-background/60 backdrop-blur-2xl border-b border-white/5"
+        className="h-12 flex items-center px-4 bg-transparent backdrop-blur-2xl"
         onMouseDown={drag}
         data-tauri-drag-region
       >
@@ -67,6 +67,7 @@ export function Titlebar() {
                 <Link
                   key={item.path}
                   href={item.path}
+                  onMouseDown={(e) => e.stopPropagation()}
                   className={cn(
                     "relative flex items-center gap-2 px-5 py-1.5 rounded-full text-xs font-medium transition-all duration-300",
                     isActive
@@ -92,6 +93,7 @@ export function Titlebar() {
                 variant="ghost"
                 size="sm"
                 className="h-8 px-2 rounded-full hover:bg-white/5 gap-1.5"
+                onMouseDown={(e) => e.stopPropagation()}
               >
                 <div className="w-6 h-6 rounded-full bg-linear-to-br from-primary/60 to-accent/60 flex items-center justify-center">
                   <span className="text-[10px] font-bold text-foreground">
@@ -131,12 +133,14 @@ export function Titlebar() {
             <button
               className="w-7 h-7 flex items-center justify-center text-dim hover:text-foreground transition-colors"
               onClick={minimize}
+              onMouseDown={(e) => e.stopPropagation()}
             >
               <Minus className="w-3 h-3" />
             </button>
             <button
               className="w-7 h-7 flex items-center justify-center text-dim hover:text-destructive transition-colors"
               onClick={close}
+              onMouseDown={(e) => e.stopPropagation()}
             >
               <X className="w-3.5 h-3.5" />
             </button>

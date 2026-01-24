@@ -5,23 +5,26 @@ import {
   Pause,
   SkipBack,
   SkipForward,
-  Heart,
-  Volume2,
-  VolumeX,
-  Volume1,
   Mic2,
   ListMusic,
   MonitorSpeaker,
   Shuffle,
   Repeat,
+  Repeat1,
+  Volume2,
+  Volume1,
+  VolumeX,
 } from "lucide-react";
-import { Slider } from "@/components/ui/slider";
 import { useSpotifyPlayer } from "@/lib/spotify";
 import { useAuth } from "@/lib/auth";
+import { useLyricsContext } from "@/lib/lrclib";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Slider } from "@/components/ui/slider";
 
 export function PlayerBar() {
   const { isAuthenticated, isPremium } = useAuth();
+  const { lyricsAvailable, isLoading: lyricsLoading } = useLyricsContext();
   const {
     state,
     isReady,
@@ -32,6 +35,8 @@ export function PlayerBar() {
     setVolume,
     transferPlayback,
     seek,
+    toggleShuffle,
+    cycleRepeatMode,
   } = useSpotifyPlayer();
 
   // Calculate current progress percentage
@@ -103,14 +108,12 @@ export function PlayerBar() {
   const albumArt = track?.album.images[0]?.url;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 h-18 border-t flex flex-col">
-      {/* Progress bar - clickable area is taller than visual bar */}
+    <div className="fixed bottom-0 left-0 right-0 h-18 border-t flex flex-col bg-card/80">
       <div className="relative h-3 -mt-1.5 group cursor-pointer w-full flex items-center">
-        {/* Visual bar container */}
         <div className="absolute left-0 right-0 h-1 top-1/2 -translate-y-1/2">
-          <div className="absolute inset-0 bg-white/[0.04]" />
+          <div className="absolute inset-0 bg-white/4" />
           <div
-            className="absolute left-0 top-0 h-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-150"
+            className="absolute left-0 top-0 h-full bg-linear-to-r from-primary to-primary/70 transition-all duration-150"
             style={{ width: `${currentProgress}%` }}
           />
         </div>
@@ -173,44 +176,101 @@ export function PlayerBar() {
 
         {/* Controls */}
         <div className="flex items-center gap-2">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={toggleShuffle}
+            className={state?.shuffle ? "text-primary" : ""}
+          >
+            <Shuffle className={`h-5 w-5 ${state?.shuffle ? "text-primary" : "text-white"}`} />
+          </Button>
           <Button variant="ghost" size="icon" onClick={previousTrack}>
-            <SkipBack className="h-5 w-5" />
+            <SkipBack className="h-5 w-5 text-white" fill="#fff" />
           </Button>
           <Button
             variant="default"
             size="icon"
-            className="h-10 w-10 rounded-full"
+            className="h-10 w-10 rounded-full bg-white"
             onClick={togglePlay}
           >
             {state?.isPlaying ? (
-              <Pause className="h-5 w-5" />
+              <Pause className="h-5 w-5 text-black" fill="#000" />
             ) : (
-              <Play className="h-5 w-5 ml-0.5" />
+              <Play className="h-5 w-5 ml-0.5 text-black" fill="#000" />
             )}
           </Button>
           <Button variant="ghost" size="icon" onClick={nextTrack}>
-            <SkipForward className="h-5 w-5" />
+            <SkipForward className="h-5 w-5 text-white" fill="#fff" />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={cycleRepeatMode}
+            className={state?.repeatMode !== "off" ? "text-primary" : ""}
+          >
+            {state?.repeatMode === "track" ? (
+              <Repeat1 className="h-5 w-5 text-primary" />
+            ) : (
+              <Repeat className={`h-5 w-5 ${state?.repeatMode === "context" ? "text-primary" : "text-white"}`} />
+            )}
           </Button>
         </div>
 
         {/* Progress (simplified) */}
-        <div className="flex-1 flex items-center justify-end gap-2">
+        <div className="flex items-center gap-1 flex-1 justify-end">
           {state && (
             <>
-              <span className="text-xs text-muted-foreground">
-                {formatTime(state.position)}
-              </span>
-              <div className="w-24 h-1 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-primary transition-all"
-                  style={{
-                    width: `${(state.position / state.duration) * 100}%`,
-                  }}
-                />
+              {lyricsAvailable ? (
+                <Link
+                  href="/lyrics"
+                  className="p-2.5 rounded-full text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                >
+                  <Mic2 className="w-4 h-4" />
+                </Link>
+              ) : (
+                <button
+                  disabled
+                  className="p-2.5 rounded-full text-muted-foreground/20 cursor-not-allowed"
+                >
+                  <Mic2 className="w-4 h-4" />
+                </button>
+              )}
+              {/* Queue */}
+              <button className="p-2.5 rounded-full text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+                <ListMusic className="w-4 h-4" />
+              </button>
+
+              {/* Devices */}
+              <button className="p-2.5 rounded-full text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+                <MonitorSpeaker className="w-4 h-4" />
+              </button>
+
+              {/* Divider */}
+              <div className="w-px h-5 bg-white/6 mx-2" />
+
+              <div className="flex items-center gap-2 group">
+                <button className="p-2.5 rounded-full text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+                  {state.volume === 0 ? (
+                    <VolumeX className="w-4 h-4" />
+                  ) : state.volume < 0.5 ? (
+                    <Volume1 className="w-4 h-4" />
+                  ) : (
+                    <Volume2 className="w-4 h-4" />
+                  )}
+                </button>
+                <div className="w-24">
+                  <Slider 
+                    value={[state.volume * 100]}
+                    onValueChange={(value) => setVolume(value[0] / 100)}
+                    max={100}
+                    step={1}
+                    className="opacity-60 hover:opacity-100 transition-opacity"
+                    trackClassName="data-horizontal:h-1"
+                    rangeClassName="data-horizontal:h-1"
+                    thumbClassName="size-3 rounded-full"
+                  />
+                </div>
               </div>
-              <span className="text-xs text-muted-foreground">
-                {formatTime(state.duration)}
-              </span>
             </>
           )}
         </div>

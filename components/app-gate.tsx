@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { isTauriContext } from "@/lib/env";
 import { Titlebar } from "@/components/tauri/titlebar";
+import { PlayerBar } from "@/components/player";
 
 interface AppGateProps {
   children: ReactNode;
@@ -13,10 +14,13 @@ interface AppGateProps {
 // Pages where search bar should be hidden
 const HIDE_SEARCH_PATHS = ["/", "/callback"];
 
+// Pages that require authentication (will redirect to /home if not in list)
+const AUTHENTICATED_PATHS = ["/home", "/lyrics", "/search", "/library", "/profile", "/settings"];
+
 /**
  * AppGate handles the initial auth verification flow:
  * 1. Shows nothing (blank screen) while checking auth state
- * 2. If authenticated → redirect to /home
+ * 2. If authenticated → allow access to authenticated pages
  * 3. If not authenticated → show login (page content)
  * 4. Handles token refresh automatically on app start
  * 5. Renders the Titlebar consistently across all pages
@@ -28,6 +32,7 @@ export function AppGate({ children }: AppGateProps) {
   const [isReady, setIsReady] = useState(false);
   
   const hideSearch = HIDE_SEARCH_PATHS.includes(pathname);
+  const isAuthenticatedPath = AUTHENTICATED_PATHS.some(p => pathname.startsWith(p));
 
   useEffect(() => {
     // Skip gate logic for callback page
@@ -49,10 +54,12 @@ export function AppGate({ children }: AppGateProps) {
 
     // Auth check complete
     if (isAuthenticated && session) {
-      // User is authenticated, redirect to /home if not already there
-      if (pathname !== "/home") {
+      // User is authenticated
+      if (pathname === "/") {
+        // On login page but authenticated, go to home
         router.replace("/home");
       } else {
+        // On any other page, allow access
         setIsReady(true);
       }
     } else {
@@ -71,10 +78,13 @@ export function AppGate({ children }: AppGateProps) {
     return null;
   }
 
+  const showPlayerBar = isAuthenticated && !HIDE_SEARCH_PATHS.includes(pathname);
+
   return (
     <>
       <Titlebar hideSearch={hideSearch} />
       {children}
+      {showPlayerBar && <PlayerBar />}
     </>
   );
 }

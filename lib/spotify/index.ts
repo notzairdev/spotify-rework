@@ -76,3 +76,6 @@ export {
   useRecommendations,
   useAvailableGenreSeeds,
 } from "./hooks";
+
+// Track like hook
+export { useTrackLike } from "./use-track-like";
