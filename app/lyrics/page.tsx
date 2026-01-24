@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Heart, Maximize2, Minimize2, Music } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useSpotifyPlayer, useTrackLike } from "@/lib/spotify";
 import { useLyricsContext } from "@/lib/lrclib";
+import { useFullscreen } from "@/lib/fullscreen";
 import { extractDominantColor, hslToString, type HSL } from "@/lib/utils/color-extractor";
+import { DynamicIsland } from "@/components/player";
 
 /**
  * Animated interlude dots component
@@ -54,8 +56,12 @@ function InterludeDots({ progress }: { progress: number }) {
 }
 
 export default function LyricsPage() {
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const { isFullscreen, toggleFullscreen, setFullscreen } = useFullscreen();
   const [ambientColor, setAmbientColor] = useState<HSL | null>(null);
+  const [userInteracted, setUserInteracted] = useState(false);
+  const [outroFadeOut, setOutroFadeOut] = useState(false);
+  const prevTrackIdRef = useRef<string | null>(null);
+  const prevPositionRef = useRef<number>(0);
   const { state, seek } = useSpotifyPlayer();
   const { isLiked, isLoading: isLikeLoading, toggleLike } = useTrackLike();
   const { 
@@ -76,20 +82,14 @@ export default function LyricsPage() {
 
   const track = state?.track;
   const albumArt = track?.album.images[0]?.url;
+  const trackId = track?.id;
 
-  // Extract dominant color from album art
+  // Reset fullscreen when leaving the page
   useEffect(() => {
-    if (!albumArt) {
-      setAmbientColor(null);
-      return;
-    }
-
-    extractDominantColor(albumArt).then((color) => {
-      if (color) {
-        setAmbientColor(color);
-      }
-    });
-  }, [albumArt]);
+    return () => {
+      setFullscreen(false);
+    };
+  }, [setFullscreen]);
 
   // Detect if we're in the outro (past last lyric with time remaining)
   const outroState = useMemo(() => {
@@ -115,6 +115,60 @@ export default function LyricsPage() {
 
     return { isOutro: false, progress: 0 };
   }, [lyrics, positionSeconds, state?.duration]);
+
+  // Determine if outro visuals should show (active outro and not fading)
+  const showOutroVisuals = outroState.isOutro && !outroFadeOut;
+  // Hide lyrics when outro is active, unless user interacted
+  const hideLyricsDuringOutro = showOutroVisuals && !userInteracted;
+
+  // Extract dominant color from album art
+  useEffect(() => {
+    if (!albumArt) {
+      setAmbientColor(null);
+      return;
+    }
+
+    extractDominantColor(albumArt).then((color) => {
+      if (color) {
+        setAmbientColor(color);
+      }
+    });
+  }, [albumArt]);
+
+  // Track change detection - trigger fade out
+  useEffect(() => {
+    if (trackId && prevTrackIdRef.current && trackId !== prevTrackIdRef.current) {
+      // Track changed, fade out outro
+      setOutroFadeOut(true);
+      setUserInteracted(false);
+      setTimeout(() => setOutroFadeOut(false), 500);
+    }
+    prevTrackIdRef.current = trackId ?? null;
+  }, [trackId]);
+
+  // Seek backwards detection - trigger fade out if seeking back during outro
+  useEffect(() => {
+    // If we're in outro and position jumped backwards significantly (seeking)
+    if (outroState.isOutro && positionSeconds < prevPositionRef.current - 2) {
+      setOutroFadeOut(true);
+      setTimeout(() => setOutroFadeOut(false), 500);
+    }
+    prevPositionRef.current = positionSeconds;
+  }, [positionSeconds, outroState.isOutro]);
+
+  // Reset user interaction when outro ends
+  useEffect(() => {
+    if (!outroState.isOutro) {
+      setUserInteracted(false);
+    }
+  }, [outroState.isOutro]);
+
+  // Handle user interaction during outro (click/scroll to show lyrics)
+  const handleUserInteraction = useCallback(() => {
+    if (outroState.isOutro && !userInteracted) {
+      setUserInteracted(true);
+    }
+  }, [outroState.isOutro, userInteracted]);
 
   // Auto-scroll to current line
   useEffect(() => {
@@ -150,9 +204,11 @@ export default function LyricsPage() {
   return (
     <div
       className={cn(
-        "relative h-[calc(100vh-5rem)] flex flex-col container mx-auto pt-20",
-        isFullscreen && "fixed inset-0 z-50 bg-background h-screen"
+        "relative h-[calc(100vh)] flex flex-col container mx-auto pt-20",
+        isFullscreen && "fixed inset-0 z-[60] bg-background h-screen pt-6"
       )}
+      onClick={handleUserInteraction}
+      onScroll={handleUserInteraction}
     >
       {/* Ambient Background - tinted with album color */}
       <div
@@ -161,7 +217,7 @@ export default function LyricsPage() {
           background: ambientColor
             ? `radial-gradient(ellipse 90% 80% at center top, hsl(${hslToString(ambientColor)} / 0.45), transparent 70%)`
             : `radial-gradient(ellipse at center top, hsl(var(--primary) / 0.3), transparent 60%)`,
-          opacity: outroState.isOutro ? 0.4 + outroState.progress * 0.3 : 0.25,
+          opacity: showOutroVisuals ? 0.4 + outroState.progress * 0.3 : 0.25,
         }}
       />
       
@@ -171,58 +227,77 @@ export default function LyricsPage() {
           className="fixed inset-0 -z-10 pointer-events-none transition-all duration-1000"
           style={{
             background: `radial-gradient(ellipse 60% 40% at center bottom, hsl(${hslToString(ambientColor)} / 0.2), transparent 60%)`,
-            opacity: outroState.isOutro ? 0.3 + outroState.progress * 0.4 : 0.15,
+            opacity: showOutroVisuals ? 0.3 + outroState.progress * 0.4 : 0.15,
           }}
         />
       )}
       
-      {/* Outro visual effect - pulsing glow that intensifies */}
-      {outroState.isOutro && ambientColor && (
-        <>
-          {/* Central glow burst */}
-          <div
-            className="fixed inset-0 -z-10 pointer-events-none animate-pulse"
-            style={{
-              background: `radial-gradient(circle at center, hsl(${hslToString(ambientColor)} / ${0.1 + outroState.progress * 0.2}), transparent 50%)`,
-              animation: "pulse 3s ease-in-out infinite",
+      {/* Outro visual overlay - Ambient fade */}
+      {showOutroVisuals && (
+        <div 
+          className={cn(
+            "fixed inset-0 z-30 pointer-events-none overflow-hidden transition-all duration-1000",
+            outroFadeOut && "opacity-0"
+          )}
+        >
+          {/* Gradient backdrop that fades in */}
+          <div 
+            className="absolute inset-0 transition-opacity duration-2000"
+            style={{ 
+              background: 'linear-gradient(to bottom, transparent 0%, hsl(var(--background)) 40%)',
+              opacity: outroState.progress 
             }}
           />
-          {/* Floating orbs effect */}
+
+          {/* Large blurred album art as ambient background */}
+          {albumArt && (
+            <div 
+              className="absolute inset-0 flex items-center justify-center animate-slow-drift"
+              style={{ opacity: outroState.progress * 0.4 }}
+            >
+              <img
+                src={albumArt}
+                alt=""
+                className="w-full h-full object-cover blur-3xl scale-150 animate-ambient-shift"
+              />
+            </div>
+          )}
+
+          {/* Center content */}
           <div 
-            className="fixed inset-0 -z-10 pointer-events-none overflow-hidden"
+            className="absolute inset-0 flex flex-col items-center justify-center gap-6"
             style={{ opacity: outroState.progress }}
           >
-            <div 
-              className="absolute w-64 h-64 rounded-full blur-3xl animate-float-slow"
-              style={{
-                background: `hsl(${hslToString(ambientColor)} / 0.3)`,
-                top: '20%',
-                left: '10%',
-              }}
-            />
-            <div 
-              className="absolute w-48 h-48 rounded-full blur-3xl animate-float-slower"
-              style={{
-                background: `hsl(${hslToString({ ...ambientColor, h: (ambientColor.h + 30) % 360 })} / 0.25)`,
-                bottom: '30%',
-                right: '15%',
-              }}
-            />
-            <div 
-              className="absolute w-32 h-32 rounded-full blur-2xl animate-float"
-              style={{
-                background: `hsl(${hslToString({ ...ambientColor, h: (ambientColor.h - 20 + 360) % 360 })} / 0.35)`,
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-              }}
-            />
+            {/* Album art */}
+            {albumArt && (
+              <div className="relative animate-gentle-breathe">
+                <img
+                  src={albumArt}
+                  alt=""
+                  className="w-32 h-32 rounded-2xl shadow-2xl"
+                  style={{
+                    boxShadow: ambientColor 
+                      ? `0 20px 50px -10px hsl(${hslToString(ambientColor)} / 0.4)` 
+                      : '0 20px 50px -10px rgba(0,0,0,0.3)',
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Track info */}
+            <div className="text-center space-y-1">
+              <p className="text-lg font-medium text-foreground/80">{track?.name}</p>
+              <p className="text-sm text-muted-foreground">{track?.artists.join(", ")}</p>
+            </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* Sticky Header */}
-      <div className="sticky top-0 z-20 bg-transparent backdrop-blur-xl border-b border-white/5 px-6 py-4">
+      <div className={cn(
+        "sticky top-0 z-20 bg-transparent backdrop-blur-xl border-b border-white/5 px-6 py-4 transition-opacity duration-500",
+        hideLyricsDuringOutro && "opacity-0 pointer-events-none"
+      )}>
         <div className="flex items-center justify-between container mx-auto">
           <div className="flex items-center gap-5">
             {albumArt ? (
@@ -256,7 +331,7 @@ export default function LyricsPage() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setIsFullscreen(!isFullscreen)}
+              onClick={toggleFullscreen}
             >
               {isFullscreen ? (
                 <Minimize2 className="w-5 h-5" />
@@ -271,7 +346,10 @@ export default function LyricsPage() {
       {/* Scrollable Lyrics Content */}
       <div 
         ref={lyricsContainerRef}
-        className="flex-1 overflow-y-auto scrollbar-hide px-6 py-8 pb-24"
+        className={cn(
+          "flex-1 overflow-y-auto scrollbar-hide px-6 py-8 pb-32 transition-opacity duration-500",
+          hideLyricsDuringOutro && "opacity-0 pointer-events-none"
+        )}
       >
         <div className={cn("max-w-3xl", isFullscreen && "mx-auto")}>
           {/* Loading state - friendly indicator */}
@@ -364,51 +442,6 @@ export default function LyricsPage() {
                   </div>
                 );
               })}
-              
-              {/* Outro indicator - beautiful ending display */}
-              {outroState.isOutro && (
-                <div 
-                  className="flex flex-col items-center justify-center py-16 mt-8 transition-all duration-1000"
-                  style={{ opacity: outroState.progress }}
-                >
-                  <div 
-                    className="relative"
-                    style={{
-                      animation: "float 4s ease-in-out infinite",
-                    }}
-                  >
-                    <div 
-                      className="absolute inset-0 blur-2xl rounded-full"
-                      style={{
-                        background: ambientColor 
-                          ? `hsl(${hslToString(ambientColor)} / 0.4)` 
-                          : "hsl(var(--primary) / 0.3)",
-                        transform: "scale(1.5)",
-                      }}
-                    />
-                    {albumArt && (
-                      <img
-                        src={albumArt}
-                        alt=""
-                        className="w-24 h-24 rounded-2xl relative z-10 shadow-2xl"
-                        style={{
-                          boxShadow: ambientColor 
-                            ? `0 20px 60px hsl(${hslToString(ambientColor)} / 0.4)` 
-                            : undefined,
-                        }}
-                      />
-                    )}
-                  </div>
-                  <p 
-                    className="mt-8 text-xl font-medium text-muted-foreground/60"
-                    style={{
-                      animation: "pulse 3s ease-in-out infinite",
-                    }}
-                  >
-                    ♪
-                  </p>
-                </div>
-              )}
             </div>
           )}
 
@@ -420,6 +453,9 @@ export default function LyricsPage() {
           )}
         </div>
       </div>
+
+      {/* Dynamic Island Player */}
+      <DynamicIsland />
     </div>
   );
 }

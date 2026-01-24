@@ -6,7 +6,7 @@
 
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth";
 import * as spotifyApi from "./api";
 
@@ -41,7 +41,11 @@ function useSpotifyQuery<T>(
   const [data, setData] = useState<T | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const [hasFetched, setHasFetched] = useState(false);
+  const hasFetchedRef = useRef(false);
+  const fetcherRef = useRef(fetcher);
+  
+  // Keep fetcher ref updated
+  fetcherRef.current = fetcher;
 
   const enabled = options?.enabled ?? true;
 
@@ -52,20 +56,29 @@ function useSpotifyQuery<T>(
     setError(null);
 
     try {
-      const result = await fetcher();
+      const result = await fetcherRef.current();
       setData(result);
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)));
     } finally {
       setIsLoading(false);
-      setHasFetched(true);
     }
-  }, [fetcher, isAuthenticated, enabled]);
+  }, [isAuthenticated, enabled]);
 
-  // Auto-fetch on mount if not fetched yet
-  if (isAuthenticated && enabled && !hasFetched && !isLoading) {
-    refetch();
-  }
+  // Auto-fetch on mount (only once)
+  useEffect(() => {
+    if (isAuthenticated && enabled && !hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      refetch();
+    }
+  }, [isAuthenticated, enabled, refetch]);
+
+  // Reset hasFetched when enabled changes to false then true
+  useEffect(() => {
+    if (!enabled) {
+      hasFetchedRef.current = false;
+    }
+  }, [enabled]);
 
   return { data, isLoading, error, refetch };
 }
@@ -222,22 +235,22 @@ export function useRemoveTracksFromPlaylist() {
 /**
  * Get available playback devices
  */
-export function useDevices() {
-  return useSpotifyQuery(() => spotifyApi.getDevices());
+export function useDevices(options?: { enabled?: boolean }) {
+  return useSpotifyQuery(() => spotifyApi.getDevices(), options);
 }
 
 /**
  * Get current playback state
  */
-export function usePlaybackState() {
-  return useSpotifyQuery(() => spotifyApi.getPlaybackState());
+export function usePlaybackState(options?: { enabled?: boolean }) {
+  return useSpotifyQuery(() => spotifyApi.getPlaybackState(), options);
 }
 
 /**
  * Get currently playing track
  */
-export function useCurrentlyPlaying() {
-  return useSpotifyQuery(() => spotifyApi.getCurrentlyPlaying());
+export function useCurrentlyPlaying(options?: { enabled?: boolean }) {
+  return useSpotifyQuery(() => spotifyApi.getCurrentlyPlaying(), options);
 }
 
 /**
@@ -248,6 +261,13 @@ export function useTransferPlayback() {
     ({ deviceId, play }: { deviceId: string; play?: boolean }) =>
       spotifyApi.transferPlayback(deviceId, play)
   );
+}
+
+/**
+ * Get player queue
+ */
+export function useQueue(options?: { enabled?: boolean }) {
+  return useSpotifyQuery(() => spotifyApi.getQueue(), options);
 }
 
 // ============================================================================

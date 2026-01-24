@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useWindow } from "@/hooks";
 import { useAuth } from "@/lib/auth";
+import { useFullscreen } from "@/lib/fullscreen";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -18,6 +19,7 @@ import {
 export function Titlebar() {
   const router = useRouter();
   const location = usePathname();
+  const { isFullscreen } = useFullscreen();
 
   const { user, logout } = useAuth();
   const {
@@ -40,12 +42,18 @@ export function Titlebar() {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 select-none">
       <div
-        className="h-12 flex items-center px-4 bg-transparent backdrop-blur-2xl"
+        className={cn(
+          "h-12 flex items-center px-4 bg-transparent transition-all duration-500",
+          isFullscreen && "bg-transparent backdrop-blur-none h-8"
+        )}
         onMouseDown={drag}
         data-tauri-drag-region
       >
         {/* Left: Branding */}
-        <div className="flex items-center gap-4 w-48">
+        <div className={cn(
+          "flex items-center gap-4 w-48 transition-all duration-500",
+          isFullscreen && "opacity-0 pointer-events-none"
+        )}>
           <div className="flex items-center gap-2">
             <img src="/svgl/spotify.svg" alt="Spotify Logo" className="opacity-50 w-4 h-4" />
             <span className="opacity-50 font-mono text-sm tracking-tight">
@@ -59,7 +67,10 @@ export function Titlebar() {
         </div>
 
         {/* Center: Navigation as minimal tabs */}
-        <nav className="flex-1 flex items-center justify-center">
+        <nav className={cn(
+          "flex-1 flex items-center justify-center transition-all duration-500",
+          isFullscreen && "opacity-0 pointer-events-none"
+        )}>
           <div className="flex items-center bg-secondary/30 rounded-full p-1">
             {navItems.map((item) => {
               const isActive = location === item.path;
@@ -86,13 +97,16 @@ export function Titlebar() {
         {/* Right: User & Controls */}
         <div className="flex items-center gap-3 w-48 justify-end">
 
-          {/* User */}
+          {/* User - hidden in fullscreen */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 px-2 rounded-full hover:bg-white/5 gap-1.5"
+                className={cn(
+                  "h-8 px-2 rounded-full hover:bg-white/5 gap-1.5 transition-all duration-500",
+                  isFullscreen && "opacity-0 pointer-events-none"
+                )}
                 onMouseDown={(e) => e.stopPropagation()}
               >
                 <div className="w-6 h-6 rounded-full bg-linear-to-br from-primary/60 to-accent/60 flex items-center justify-center">

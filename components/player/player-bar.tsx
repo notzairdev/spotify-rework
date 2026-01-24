@@ -1,13 +1,12 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import {
   Play,
   Pause,
   SkipBack,
   SkipForward,
   Mic2,
-  ListMusic,
-  MonitorSpeaker,
   Shuffle,
   Repeat,
   Repeat1,
@@ -15,12 +14,15 @@ import {
   Volume1,
   VolumeX,
 } from "lucide-react";
-import { useSpotifyPlayer } from "@/lib/spotify";
+import { toast } from "sonner";
+import { useSpotifyPlayer, useQueue } from "@/lib/spotify";
 import { useAuth } from "@/lib/auth";
 import { useLyricsContext } from "@/lib/lrclib";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Slider } from "@/components/ui/slider";
+import { QueuePopover } from "./queue-popover";
+import { DevicePopover } from "./device-popover";
 
 export function PlayerBar() {
   const { isAuthenticated, isPremium } = useAuth();
@@ -38,12 +40,49 @@ export function PlayerBar() {
     toggleShuffle,
     cycleRepeatMode,
   } = useSpotifyPlayer();
+  // Only fetch queue when there's a track playing
+  const shouldFetchQueue = !!state?.track;
+  const { data: queueData } = useQueue({ enabled: shouldFetchQueue });
+  
+  // Track if we've shown toast for current track
+  const toastShownRef = useRef<string | null>(null);
+  const lastTrackIdRef = useRef<string | null>(null);
 
   // Calculate current progress percentage
   const currentProgress =
     state?.position != null && state?.duration != null && state.duration > 0
       ? (state.position / state.duration) * 100
       : 0;
+
+  // Next song toast at 15 seconds remaining
+  useEffect(() => {
+    if (!state?.track || !state.duration || !state.isPlaying) return;
+    
+    const remaining = state.duration - (state.position ?? 0);
+    const trackId = state.track.id;
+    const nextTrackInQueue = queueData?.queue?.[0];
+    
+    // Reset toast shown when track changes
+    if (toastShownRef.current !== null && toastShownRef.current !== trackId) {
+      toastShownRef.current = null;
+    }
+    
+    // Show toast when under 15 seconds remaining + haven't shown for this track + has next track
+    if (remaining <= 15000 && toastShownRef.current !== trackId && nextTrackInQueue) {
+      toastShownRef.current = trackId;
+      toast("Siguiente", {
+        description: `${nextTrackInQueue.name} • ${nextTrackInQueue.artists.map(a => a.name).join(", ")}`,
+        duration: 5000,
+        icon: nextTrackInQueue.album.images[2]?.url ? (
+          <img 
+            src={nextTrackInQueue.album.images[2].url} 
+            alt="" 
+            className="w-8 h-8 rounded"
+          />
+        ) : undefined,
+      });
+    }
+  }, [state?.position, state?.duration, state?.track?.id, state?.isPlaying, queueData?.queue]);
 
   const handleSeek = (percentage: number) => {
     if (state?.duration) {
@@ -108,7 +147,7 @@ export function PlayerBar() {
   const albumArt = track?.album.images[0]?.url;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 h-18 border-t flex flex-col bg-card/80">
+    <div className="fixed bottom-0 left-0 right-0 h-18 border-t flex flex-col bg-card/80 backdrop-blur-3xl">
       <div className="relative h-3 -mt-1.5 group cursor-pointer w-full flex items-center">
         <div className="absolute left-0 right-0 h-1 top-1/2 -translate-y-1/2">
           <div className="absolute inset-0 bg-white/4" />
@@ -236,14 +275,10 @@ export function PlayerBar() {
                 </button>
               )}
               {/* Queue */}
-              <button className="p-2.5 rounded-full text-muted-foreground/50 hover:text-muted-foreground transition-colors">
-                <ListMusic className="w-4 h-4" />
-              </button>
+              <QueuePopover />
 
               {/* Devices */}
-              <button className="p-2.5 rounded-full text-muted-foreground/50 hover:text-muted-foreground transition-colors">
-                <MonitorSpeaker className="w-4 h-4" />
-              </button>
+              <DevicePopover />
 
               {/* Divider */}
               <div className="w-px h-5 bg-white/6 mx-2" />

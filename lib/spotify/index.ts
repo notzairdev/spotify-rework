@@ -52,6 +52,7 @@ export {
   usePlaybackState,
   useCurrentlyPlaying,
   useTransferPlayback,
+  useQueue,
   // Search
   useSearch,
   // Library

@@ -78,13 +78,17 @@ export function AppGate({ children }: AppGateProps) {
     return null;
   }
 
-  const showPlayerBar = isAuthenticated && !HIDE_SEARCH_PATHS.includes(pathname);
+  const showPlayerBar = isAuthenticated && !HIDE_SEARCH_PATHS.includes(pathname) && pathname !== "/lyrics";
 
   return (
     <>
       <Titlebar hideSearch={hideSearch} />
       {children}
-      {showPlayerBar && <PlayerBar />}
+      <div
+        className={`transition-opacity duration-300 ${showPlayerBar ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+      >
+        <PlayerBar />
+      </div>
     </>
   );
 }

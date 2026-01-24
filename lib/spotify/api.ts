@@ -576,6 +576,18 @@ export async function addToQueue(uri: string, deviceId?: string): Promise<void> 
   await spotifyFetch(`/me/player/queue?${params}`, { method: "POST" });
 }
 
+/**
+ * Get the user's playback queue
+ */
+export interface SpotifyQueue {
+  currently_playing: SpotifyTrack | null;
+  queue: SpotifyTrack[];
+}
+
+export async function getQueue(): Promise<SpotifyQueue> {
+  return spotifyFetch<SpotifyQueue>("/me/player/queue");
+}
+
 // ============================================================================
 // Search API
 // ============================================================================

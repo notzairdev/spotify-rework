@@ -7,11 +7,13 @@ import {
   SkipBack,
   SkipForward,
   Heart,
+  ListMusic,
 } from "lucide-react";
 import { useSpotifyPlayer, useTrackLike } from "@/lib/spotify";
 import { cn } from "@/lib/utils";
 import { extractDominantColor, hslToString, type HSL } from "@/lib/utils/color-extractor";
 import { useEffect } from "react";
+import { QueuePopover } from "./queue-popover";
 
 /**
  * Dynamic Island style player for the lyrics view
@@ -44,10 +46,10 @@ export function DynamicIsland() {
     });
   }, [albumArt]);
 
-  if (!track) return null;
-
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+    <div 
+      className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-500 ${track ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
+    >
       {/* Ambient glow */}
       <div
         className="absolute inset-0 opacity-50 blur-2xl -z-10 scale-150 transition-all duration-500"
@@ -60,7 +62,7 @@ export function DynamicIsland() {
 
       <div
         className={cn(
-          "bg-card/90 backdrop-blur-2xl border border-white/[0.08] rounded-full shadow-2xl shadow-black/30",
+          "bg-card/90 backdrop-blur-2xl border border-white/8 rounded-full shadow-2xl shadow-black/30",
           "transition-all duration-500 ease-out",
           isHovered ? "px-6 py-3" : "px-4 py-2"
         )}
@@ -77,7 +79,7 @@ export function DynamicIsland() {
           <div className="relative">
             <img
               src={albumArt}
-              alt={track.name}
+              alt={track?.name ?? ""}
               className={cn(
                 "rounded-full object-cover shadow-lg transition-all duration-500",
                 isHovered ? "w-12 h-12" : "w-10 h-10",
@@ -85,41 +87,6 @@ export function DynamicIsland() {
               )}
               style={{ animationDuration: "8s" }}
             />
-            {/* Progress ring */}
-            <svg
-              className={cn(
-                "absolute inset-0 -rotate-90 transition-all duration-500",
-                isHovered ? "w-12 h-12" : "w-10 h-10"
-              )}
-            >
-              <circle
-                cx="50%"
-                cy="50%"
-                r="45%"
-                fill="none"
-                stroke={
-                  ambientColor
-                    ? `hsl(${hslToString(ambientColor)} / 0.2)`
-                    : "hsl(var(--primary) / 0.2)"
-                }
-                strokeWidth="2"
-              />
-              <circle
-                cx="50%"
-                cy="50%"
-                r="45%"
-                fill="none"
-                stroke={
-                  ambientColor
-                    ? `hsl(${hslToString(ambientColor)})`
-                    : "hsl(var(--primary))"
-                }
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeDasharray={`${progress * 2.83} 283`}
-                className="transition-all duration-300"
-              />
-            </svg>
           </div>
 
           {/* Track info - only on hover */}
@@ -130,10 +97,10 @@ export function DynamicIsland() {
             )}
           >
             <p className="text-xs font-medium text-foreground truncate">
-              {track.name}
+              {track?.name}
             </p>
             <p className="text-[10px] text-muted-foreground truncate">
-              {track.artists.join(", ")}
+              {track?.artists.join(", ")}
             </p>
           </div>
 
@@ -184,6 +151,18 @@ export function DynamicIsland() {
               fill={isLiked ? "currentColor" : "none"}
             />
           </button>
+
+          {/* Queue - only on hover */}
+          <div
+            className={cn(
+              "transition-all duration-500 overflow-hidden",
+              isHovered ? "opacity-100 w-8" : "opacity-0 w-0"
+            )}
+          >
+            <QueuePopover 
+              triggerClassName="p-0 text-muted-foreground hover:text-foreground"
+            />
+          </div>
         </div>
       </div>
     </div>

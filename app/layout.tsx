@@ -3,6 +3,7 @@ import { Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 
 import { Providers } from "@/components/wrapped/providers";
+import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
@@ -30,6 +31,7 @@ export default function RootLayout({
       >
         <Providers>
           {children}
+          <Toaster position="bottom-right" />
         </Providers>
       </body>
     </html>

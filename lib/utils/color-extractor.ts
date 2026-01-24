@@ -64,6 +64,7 @@ function getVibrancy(hsl: HSL): number {
 
 /**
  * Extract the dominant/most vibrant color from an image
+ * Falls back to most common color for grayscale images
  */
 export async function extractDominantColor(imageUrl: string): Promise<HSL | null> {
   return new Promise((resolve) => {
@@ -88,8 +89,9 @@ export async function extractDominantColor(imageUrl: string): Promise<HSL | null
         const imageData = ctx.getImageData(0, 0, size, size);
         const pixels = imageData.data;
 
-        // Sample colors and find the most vibrant
-        const colorCounts: Map<string, { count: number; hsl: HSL }> = new Map();
+        // Sample colors - separate vibrant from all colors
+        const vibrantColors: Map<string, { count: number; hsl: HSL }> = new Map();
+        const allColors: Map<string, { count: number; hsl: HSL }> = new Map();
 
         for (let i = 0; i < pixels.length; i += 4) {
           const r = pixels[i];
@@ -102,27 +104,33 @@ export async function extractDominantColor(imageUrl: string): Promise<HSL | null
 
           const hsl = rgbToHsl(r, g, b);
 
-          // Skip very dark or very light colors (likely background)
-          if (hsl.l < 15 || hsl.l > 85) continue;
-          // Skip very desaturated colors
-          if (hsl.s < 20) continue;
-
           // Quantize to reduce unique colors
           const key = `${Math.round(hsl.h / 10) * 10}-${Math.round(hsl.s / 10) * 10}-${Math.round(hsl.l / 10) * 10}`;
 
-          const existing = colorCounts.get(key);
-          if (existing) {
-            existing.count++;
+          // Track all colors (for fallback)
+          const existingAll = allColors.get(key);
+          if (existingAll) {
+            existingAll.count++;
           } else {
-            colorCounts.set(key, { count: 1, hsl });
+            allColors.set(key, { count: 1, hsl });
+          }
+
+          // Track vibrant colors (saturated, mid-luminance)
+          if (hsl.l >= 15 && hsl.l <= 85 && hsl.s >= 20) {
+            const existingVibrant = vibrantColors.get(key);
+            if (existingVibrant) {
+              existingVibrant.count++;
+            } else {
+              vibrantColors.set(key, { count: 1, hsl });
+            }
           }
         }
 
-        // Find the most vibrant color that appears frequently
+        // Try to find the most vibrant color first
         let bestColor: HSL | null = null;
         let bestScore = 0;
 
-        colorCounts.forEach(({ count, hsl }) => {
+        vibrantColors.forEach(({ count, hsl }) => {
           const vibrancy = getVibrancy(hsl);
           const score = vibrancy * Math.log(count + 1);
 
@@ -131,6 +139,35 @@ export async function extractDominantColor(imageUrl: string): Promise<HSL | null
             bestColor = hsl;
           }
         });
+
+        // If no vibrant color found, use most common color with adjusted saturation
+        if (!bestColor && allColors.size > 0) {
+          let maxCount = 0;
+          let fallbackHsl: HSL | null = null;
+
+          allColors.forEach(({ count, hsl }) => {
+            // Prefer colors that aren't pure black or white
+            if (hsl.l > 5 && hsl.l < 95 && count > maxCount) {
+              maxCount = count;
+              fallbackHsl = hsl;
+            }
+          });
+
+          if (fallbackHsl) {
+            const fb = fallbackHsl as HSL;
+            // Boost saturation for grayscale fallback to make ambient visible
+            bestColor = {
+              h: fb.h || 200, // Default to blue-ish if no hue
+              s: Math.max(fb.s, 30), // Ensure minimum saturation
+              l: Math.min(Math.max(fb.l, 25), 65), // Clamp luminance
+            };
+          }
+        }
+
+        // Ultimate fallback: teal/primary color
+        if (!bestColor) {
+          bestColor = { h: 183, s: 50, l: 50 }; // Teal fallback
+        }
 
         resolve(bestColor);
       } catch (e) {

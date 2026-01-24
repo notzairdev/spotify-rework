@@ -184,3 +184,69 @@
 .animate-float-slower {
   animation: float-slower 12s ease-in-out infinite;
 }
+
+/* Slow spin for Dynamic Island album art */
+.animate-spin-slow {
+  animation: spin 8s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ===== Ambient Outro Visualizer ===== */
+
+/* Slow color shift for gradient backgrounds */
+@keyframes ambient-shift {
+  0%, 100% {
+    filter: hue-rotate(0deg);
+    opacity: 0.6;
+  }
+  50% {
+    filter: hue-rotate(30deg);
+    opacity: 0.8;
+  }
+}
+
+.animate-ambient-shift {
+  animation: ambient-shift 12s ease-in-out infinite;
+}
+
+/* Gentle breathing scale */
+@keyframes gentle-breathe {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+.animate-gentle-breathe {
+  animation: gentle-breathe 6s ease-in-out infinite;
+}
+
+/* Slow drift movement */
+@keyframes slow-drift {
+  0%, 100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(2%, -1%);
+  }
+  50% {
+    transform: translate(-1%, 2%);
+  }
+  75% {
+    transform: translate(-2%, -1%);
+  }
+}
+
+.animate-slow-drift {
+  animation: slow-drift 20s ease-in-out infinite;
+}
