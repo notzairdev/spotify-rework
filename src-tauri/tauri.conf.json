@@ -21,9 +21,11 @@
         "fullscreen": false,
         "center": true,
         "decorations": false,
-        "transparent": false
+        "transparent": false,
+        "useHttpsScheme": true
       }
     ],
+    "withGlobalTauri": true,
     "security": {
       "csp": null
     }

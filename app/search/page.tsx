@@ -231,7 +231,10 @@ export default function SearchPage() {
             <section>
               <h2 className="text-xl font-semibold mb-4">Playlists</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5">
-                {results.playlists.items.slice(0, 6).map((playlist) => (
+                {results.playlists.items
+                  .filter((p): p is NonNullable<typeof p> => p !== null && p.id !== null)
+                  .slice(0, 6)
+                  .map((playlist) => (
                   <Link
                     key={playlist.id}
                     href={`/playlist/${playlist.id}`}

@@ -8,6 +8,7 @@ import { Grid, List, Plus, Search, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { SortablePlaylists } from "@/components/library/sortable-playlists";
 import { cn } from "@/lib/utils";
 import {
   useMyPlaylists,
@@ -158,47 +159,59 @@ export default function LibraryPage() {
 
       {/* Content */}
       {!isLoading && viewMode === "grid" && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
-          {/* Playlists */}
-          {(filter === "all" || filter === "playlists") &&
-            filteredPlaylists.map((playlist) => (
-              <Link
-                key={playlist.id}
-                href={`/playlist/${playlist.id}`}
-                className="group"
-              >
-                <div className="relative aspect-square overflow-hidden rounded-lg">
-                  {playlist.images?.[0]?.url ? (
-                    <Image
-                      src={playlist.images[0].url}
-                      alt={playlist.name}
-                      fill
-                      className="object-cover transition-transform group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex size-full items-center justify-center bg-muted">
-                      <span className="text-4xl text-muted-foreground">♪</span>
-                    </div>
-                  )}
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-                    <Button
-                      size="icon"
-                      className="size-12 rounded-full"
-                      onClick={(e) => handlePlayPlaylist(e, playlist.uri)}
-                    >
-                      <Play className="size-5 fill-current" />
-                    </Button>
-                  </div>
-                </div>
-                <h3 className="mt-2 truncate font-medium">{playlist.name}</h3>
-                <p className="truncate text-sm text-muted-foreground">
-                  Playlist • {playlist.owner.display_name}
-                </p>
-              </Link>
-            ))}
+        <>
+          {/* Sortable Playlists when filter is "playlists" */}
+          {filter === "playlists" && (
+            <SortablePlaylists
+              playlists={filteredPlaylists}
+              viewMode="grid"
+              onPlay={handlePlayPlaylist}
+            />
+          )}
 
-          {/* Albums */}
-          {(filter === "all" || filter === "albums") &&
+          {/* Normal grid for "all" or other filters */}
+          {filter !== "playlists" && (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
+              {/* Playlists */}
+              {filter === "all" &&
+                filteredPlaylists.map((playlist) => (
+                  <Link
+                    key={playlist.id}
+                    href={`/playlist/${playlist.id}`}
+                    className="group"
+                  >
+                    <div className="relative aspect-square overflow-hidden rounded-lg">
+                      {playlist.images?.[0]?.url ? (
+                        <Image
+                          src={playlist.images[0].url}
+                          alt={playlist.name}
+                          fill
+                          className="object-cover transition-transform group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="flex size-full items-center justify-center bg-muted">
+                          <span className="text-4xl text-muted-foreground">♪</span>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                        <Button
+                          size="icon"
+                          className="size-12 rounded-full"
+                          onClick={(e) => handlePlayPlaylist(e, playlist.uri)}
+                        >
+                          <Play className="size-5 fill-current" />
+                        </Button>
+                      </div>
+                    </div>
+                    <h3 className="mt-2 truncate font-medium">{playlist.name}</h3>
+                    <p className="truncate text-sm text-muted-foreground">
+                      Playlist • {playlist.owner.display_name}
+                    </p>
+                  </Link>
+                ))}
+
+              {/* Albums */}
+              {(filter === "all" || filter === "albums") &&
             filteredAlbums.map(({ album }) => (
               <Link
                 key={album.id}
@@ -263,44 +276,58 @@ export default function LibraryPage() {
                 <p className="text-sm text-muted-foreground">Artista</p>
               </Link>
             ))}
-        </div>
+            </div>
+          )}
+        </>
       )}
 
       {!isLoading && viewMode === "list" && (
-        <div className="overflow-hidden rounded-lg border border-border">
-          {/* Playlists */}
-          {(filter === "all" || filter === "playlists") &&
-            filteredPlaylists.map((playlist) => (
-              <Link
-                key={playlist.id}
-                href={`/playlist/${playlist.id}`}
-                className="flex items-center gap-4 p-3 transition-colors hover:bg-muted/50"
-              >
-                <div className="relative size-14 shrink-0 overflow-hidden rounded-lg">
-                  {playlist.images?.[0]?.url ? (
-                    <Image
-                      src={playlist.images[0].url}
-                      alt={playlist.name}
-                      fill
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="flex size-full items-center justify-center bg-muted">
-                      <span className="text-xl text-muted-foreground">♪</span>
-                    </div>
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{playlist.name}</p>
-                  <p className="truncate text-sm text-muted-foreground">
-                    Playlist • {playlist.owner.display_name}
-                  </p>
-                </div>
-              </Link>
-            ))}
+        <>
+          {/* Sortable Playlists List when filter is "playlists" */}
+          {filter === "playlists" && (
+            <SortablePlaylists
+              playlists={filteredPlaylists}
+              viewMode="list"
+              onPlay={handlePlayPlaylist}
+            />
+          )}
 
-          {/* Albums */}
-          {(filter === "all" || filter === "albums") &&
+          {/* Normal list for "all" or other filters */}
+          {filter !== "playlists" && (
+            <div className="overflow-hidden rounded-lg border border-border">
+              {/* Playlists */}
+              {filter === "all" &&
+                filteredPlaylists.map((playlist) => (
+                  <Link
+                    key={playlist.id}
+                    href={`/playlist/${playlist.id}`}
+                    className="flex items-center gap-4 p-3 transition-colors hover:bg-muted/50"
+                  >
+                    <div className="relative size-14 shrink-0 overflow-hidden rounded-lg">
+                      {playlist.images?.[0]?.url ? (
+                        <Image
+                          src={playlist.images[0].url}
+                          alt={playlist.name}
+                          fill
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="flex size-full items-center justify-center bg-muted">
+                          <span className="text-xl text-muted-foreground">♪</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{playlist.name}</p>
+                      <p className="truncate text-sm text-muted-foreground">
+                        Playlist • {playlist.owner.display_name}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+
+              {/* Albums */}
+              {(filter === "all" || filter === "albums") &&
             filteredAlbums.map(({ album }) => (
               <Link
                 key={album.id}
@@ -360,7 +387,9 @@ export default function LibraryPage() {
                 </div>
               </Link>
             ))}
-        </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Empty state */}

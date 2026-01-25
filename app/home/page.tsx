@@ -1,6 +1,6 @@
 "use client";
 
-import { Play, Clock, TrendingUp, Music, Disc3 } from "lucide-react";
+import { Play, Clock, TrendingUp, Music, Disc3, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { 
@@ -8,6 +8,8 @@ import {
   useTopTracks, 
   useTopArtists,
   useRecentlyPlayed,
+  useNewReleases,
+  useFeaturedPlaylists,
   useSpotifyPlayer,
   startPlayback,
 } from "@/lib/spotify";
@@ -24,6 +26,8 @@ export default function HomePage() {
   const { data: topTracks, isLoading: tracksLoading } = useTopTracks("short_term", 10);
   const { data: topArtists, isLoading: artistsLoading } = useTopArtists("medium_term", 10);
   const { data: recentlyPlayed, isLoading: recentLoading } = useRecentlyPlayed(10);
+  const { data: newReleases, isLoading: releasesLoading } = useNewReleases(10);
+  const { data: featuredPlaylists, isLoading: featuredLoading } = useFeaturedPlaylists(10);
   const { state } = useSpotifyPlayer();
 
   // Get unique recently played (dedupe by track id)
@@ -50,8 +54,30 @@ export default function HomePage() {
     }
   };
 
+  const handlePlayAlbum = async (albumId: string) => {
+    try {
+      await startPlayback({ contextUri: `spotify:album:${albumId}` });
+    } catch (e) {
+      console.error("Failed to play album:", e);
+    }
+  };
+
+  const handlePlayPlaylist = async (playlistId: string) => {
+    try {
+      await startPlayback({ contextUri: `spotify:playlist:${playlistId}` });
+    } catch (e) {
+      console.error("Failed to play playlist:", e);
+    }
+  };
+
   const firstPlaylist = playlists?.items?.[0];
   const otherPlaylists = playlists?.items?.slice(1, 4) ?? [];
+  const newAlbums = (newReleases?.albums?.items ?? []).filter(
+    (album): album is NonNullable<typeof album> => album !== null && album.id !== null
+  );
+  const featured = (featuredPlaylists?.playlists?.items ?? []).filter(
+    (p): p is NonNullable<typeof p> => p !== null && p.id !== null
+  );
 
   return (
     <div className="space-y-16 animate-fade-in py-24 px-6 container mx-auto">
@@ -298,6 +324,115 @@ export default function HomePage() {
           )}
         </div>
       </section>
+
+      {/* New Releases */}
+      {newAlbums.length > 0 && (
+        <section>
+          <div className="flex items-center gap-3 mb-8">
+            <Sparkles className="w-5 h-5 text-primary" />
+            <h2 className="text-2xl font-display font-bold text-foreground">
+              New Releases
+            </h2>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5">
+            {releasesLoading ? (
+              Array(6).fill(0).map((_, i) => (
+                <div key={i} className="space-y-3">
+                  <div className="aspect-square rounded-xl bg-muted animate-pulse" />
+                  <div className="h-4 bg-muted rounded animate-pulse" />
+                  <div className="h-3 w-2/3 bg-muted rounded animate-pulse" />
+                </div>
+              ))
+            ) : (
+              newAlbums.slice(0, 6).map((album, i) => (
+                <div
+                  key={album.id}
+                  onClick={() => handlePlayAlbum(album.id)}
+                  className="group cursor-pointer animate-slide-up"
+                  style={{ animationDelay: `${i * 50}ms` }}
+                >
+                  <div className="relative aspect-square mb-3 rounded-xl overflow-hidden transition-transform hover:scale-105">
+                    {album.images[0]?.url ? (
+                      <img
+                        src={album.images[0].url}
+                        alt={album.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-muted flex items-center justify-center">
+                        <Disc3 className="w-10 h-10 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <Button size="icon" className="rounded-full">
+                        <Play className="w-5 h-5" fill="currentColor" />
+                      </Button>
+                    </div>
+                  </div>
+                  <h3 className="font-semibold text-sm text-foreground truncate">{album.name}</h3>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {album.artists.map(a => a.name).join(", ")}
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* Featured Playlists */}
+      {featured.length > 0 && (
+        <section>
+          <div className="flex items-center gap-3 mb-8">
+            <Music className="w-5 h-5 text-primary" />
+            <h2 className="text-2xl font-display font-bold text-foreground">
+              {featuredPlaylists?.message || "Made For You"}
+            </h2>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5">
+            {featuredLoading ? (
+              Array(6).fill(0).map((_, i) => (
+                <div key={i} className="space-y-3">
+                  <div className="aspect-square rounded-xl bg-muted animate-pulse" />
+                  <div className="h-4 bg-muted rounded animate-pulse" />
+                </div>
+              ))
+            ) : (
+              featured.slice(0, 6).map((playlist, i) => (
+                <Link
+                  key={playlist.id}
+                  href={`/playlist/${playlist.id}`}
+                  className="group cursor-pointer animate-slide-up"
+                  style={{ animationDelay: `${i * 50}ms` }}
+                >
+                  <div className="relative aspect-square mb-3 rounded-xl overflow-hidden transition-transform hover:scale-105">
+                    {playlist.images[0]?.url ? (
+                      <img
+                        src={playlist.images[0].url}
+                        alt={playlist.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-muted flex items-center justify-center">
+                        <Music className="w-10 h-10 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <Button size="icon" className="rounded-full">
+                        <Play className="w-5 h-5" fill="currentColor" />
+                      </Button>
+                    </div>
+                  </div>
+                  <h3 className="font-semibold text-sm text-foreground truncate">{playlist.name}</h3>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {playlist.description || `${playlist.tracks.total} canciones`}
+                  </p>
+                </Link>
+              ))
+            )}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

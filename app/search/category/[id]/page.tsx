@@ -16,7 +16,10 @@ export default function CategoryPage({ params }: CategoryPageProps) {
   const router = useRouter();
   const { data, isLoading } = useCategoryPlaylists(id, 50);
 
-  const playlists = data?.playlists?.items ?? [];
+  // Filter out null items (API can return nulls)
+  const playlists = (data?.playlists?.items ?? []).filter(
+    (p): p is NonNullable<typeof p> => p !== null && p.id !== null
+  );
 
   const handlePlayPlaylist = async (uri: string) => {
     try {

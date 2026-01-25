@@ -101,29 +101,26 @@ export function Titlebar() {
   ];
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 select-none">
+    <header className={cn(
+      "fixed top-0 left-0 right-0 z-50 select-none transition-all duration-500",
+      isFullscreen && "bg-transparent"
+    )}>
       <div
         className={cn(
           "h-12 flex items-center px-4 bg-transparent transition-all duration-500",
-          isFullscreen && "bg-transparent backdrop-blur-none h-8"
+          isFullscreen && "h-10"
         )}
         onMouseDown={drag}
         data-tauri-drag-region
       >
-        {/* Left: Branding */}
-        <div className={cn(
-          "flex items-center gap-4 w-48 transition-all duration-500",
-          isFullscreen && "opacity-0 pointer-events-none"
-        )}>
+        {/* Left: Branding - always visible */}
+        <div className="flex items-center gap-4 w-48 transition-all duration-500">
           <div className="flex items-center gap-2">
             <img src="/svgl/spotify.svg" alt="Spotify Logo" className="opacity-50 w-auto h-5" />
-            {/* <span className="opacity-50 font-mono text-sm tracking-tight">
-              DEV
-            </span> */}
           </div>
         </div>
 
-        {/* Center: Navigation as minimal tabs */}
+        {/* Center: Navigation as minimal tabs - hidden in fullscreen */}
         <nav className={cn(
           "flex-1 flex items-center justify-center gap-4 transition-all duration-500",
           isFullscreen && "opacity-0 pointer-events-none"

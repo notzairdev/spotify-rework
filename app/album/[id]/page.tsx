@@ -15,6 +15,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { TrackContextMenu } from "@/components/context";
 import { useAlbum, useAlbumTracks } from "@/lib/spotify/hooks";
 import { startPlayback } from "@/lib/spotify/api";
 import {
@@ -227,47 +228,58 @@ export default function AlbumPage({ params }: PageProps) {
       ) : (
         <div className="flex flex-col">
           {tracks.map((track, index) => (
-            <div
+            <TrackContextMenu
               key={track.id}
-              className="group grid grid-cols-[auto_1fr_auto] items-center gap-4 px-6 py-3 transition-colors hover:bg-muted/50 rounded-lg"
-              onClick={() => handlePlayTrack(track.uri, index)}
-              role="button"
-              tabIndex={0}
+              trackId={track.id}
+              trackUri={track.uri}
+              trackName={track.name}
+              artistId={track.artists?.[0]?.id}
+              artistName={track.artists?.[0]?.name}
+              albumId={album.id}
+              albumName={album.name}
+              spotifyUrl={track.external_urls?.spotify}
             >
-              {/* Track number / play button */}
-              <div className="flex w-8 items-center justify-center">
-                <span className="text-sm text-muted-foreground group-hover:hidden">
-                  {index + 1}
-                </span>
-                <Play className="hidden size-4 fill-current group-hover:block" />
-              </div>
+              <div
+                className="group grid grid-cols-[auto_1fr_auto] items-center gap-4 px-6 py-3 transition-colors hover:bg-muted/50 rounded-lg"
+                onClick={() => handlePlayTrack(track.uri, index)}
+                role="button"
+                tabIndex={0}
+              >
+                {/* Track number / play button */}
+                <div className="flex w-8 items-center justify-center">
+                  <span className="text-sm text-muted-foreground group-hover:hidden">
+                    {index + 1}
+                  </span>
+                  <Play className="hidden size-4 fill-current group-hover:block" />
+                </div>
 
-              {/* Track info */}
-              <div className="flex min-w-0 flex-col">
-                <span className="truncate font-medium">{track.name}</span>
-                <span className="truncate text-sm text-muted-foreground">
-                  {track.artists?.map((artist, i) => (
-                    <span key={artist.id}>
-                      <Link
-                        href={`/artist/${artist.id}`}
-                        className="hover:underline"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {artist.name}
-                      </Link>
-                      {i < track.artists.length - 1 && ", "}
-                    </span>
-                  ))}
-                </span>
-              </div>
+                {/* Track info */}
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate font-medium">{track.name}</span>
+                  <span className="truncate text-sm text-muted-foreground">
+                    {track.artists?.map((artist, i) => (
+                      <span key={artist.id}>
+                        <Link
+                          href={`/artist/${artist.id}`}
+                          className="hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {artist.name}
+                        </Link>
+                        {i < track.artists.length - 1 && ", "}
+                      </span>
+                    ))}
+                  </span>
+                </div>
 
-              {/* Duration */}
-              <div className="flex items-center justify-end gap-4 pr-4">
-                <span className="text-sm text-muted-foreground">
-                  {formatDuration(track.duration_ms)}
-                </span>
+                {/* Duration */}
+                <div className="flex items-center justify-end gap-4 pr-4">
+                  <span className="text-sm text-muted-foreground">
+                    {formatDuration(track.duration_ms)}
+                  </span>
+                </div>
               </div>
-            </div>
+            </TrackContextMenu>
           ))}
         </div>
       )}

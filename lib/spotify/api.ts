@@ -1014,3 +1014,45 @@ export async function getCategoryPlaylists(
     `/browse/categories/${encodeURIComponent(categoryId)}/playlists?${params}`
   );
 }
+
+/**
+ * Get new album releases
+ */
+export async function getNewReleases(
+  limit: number = 20,
+  offset: number = 0
+): Promise<{ albums: SpotifyPaginatedResponse<SpotifyAlbum> }> {
+  const params = new URLSearchParams({
+    limit: limit.toString(),
+    offset: offset.toString(),
+  });
+  return spotifyFetch<{ albums: SpotifyPaginatedResponse<SpotifyAlbum> }>(
+    `/browse/new-releases?${params}`
+  );
+}
+
+/**
+ * Get featured playlists (uses toplists category as fallback since /browse/featured-playlists was deprecated)
+ */
+export async function getFeaturedPlaylists(
+  limit: number = 20,
+  offset: number = 0,
+  locale?: string,
+  country?: string
+): Promise<{ message: string; playlists: SpotifyPaginatedResponse<SpotifyPlaylist> }> {
+  // Use toplists category which contains popular/trending playlists
+  const params = new URLSearchParams({
+    limit: limit.toString(),
+    offset: offset.toString(),
+  });
+  if (country) params.set("country", country);
+  
+  const result = await spotifyFetch<{ playlists: SpotifyPaginatedResponse<SpotifyPlaylist> }>(
+    `/browse/categories/toplists/playlists?${params}`
+  );
+  
+  return {
+    message: "Popular Playlists",
+    playlists: result.playlists,
+  };
+}

@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { usePlaylist, usePlaylistTracks } from "@/lib/spotify/hooks";
 import { startPlayback } from "@/lib/spotify/api";
 import { Spinner } from "@/components/ui/spinner";
+import { TrackContextMenu } from "@/components/context";
 import { extractDominantColor, hslToString, type HSL } from "@/lib/utils/color-extractor";
 
 function formatDuration(ms: number): string {
@@ -237,85 +238,96 @@ export default function PlaylistPage({ params }: PageProps) {
             if (!track) return null;
 
             return (
-              <div
+              <TrackContextMenu
                 key={`${track.id}-${index}`}
-                className="group grid grid-cols-[auto_1fr_1fr_auto] items-center gap-4 px-6 py-4 transition-colors hover:bg-muted/50 rounded-2xl"
-                onClick={() => handlePlayTrack(index)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    handlePlayTrack(index);
-                  }
-                }}
+                trackId={track.id}
+                trackUri={track.uri}
+                trackName={track.name}
+                artistId={track.artists?.[0]?.id}
+                artistName={track.artists?.[0]?.name}
+                albumId={track.album?.id}
+                albumName={track.album?.name}
+                spotifyUrl={track.external_urls?.spotify}
               >
-                {/* Track number / play button */}
-                <div className="flex w-8 items-center justify-center">
-                  <span className="text-sm text-muted-foreground group-hover:hidden">
-                    {index + 1}
-                  </span>
-                  <Play className="hidden size-4 fill-current group-hover:block" />
-                </div>
+                <div
+                  className="group grid grid-cols-[auto_1fr_1fr_auto] items-center gap-4 px-6 py-4 transition-colors hover:bg-muted/50 rounded-2xl"
+                  onClick={() => handlePlayTrack(index)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      handlePlayTrack(index);
+                    }
+                  }}
+                >
+                  {/* Track number / play button */}
+                  <div className="flex w-8 items-center justify-center">
+                    <span className="text-sm text-muted-foreground group-hover:hidden">
+                      {index + 1}
+                    </span>
+                    <Play className="hidden size-4 fill-current group-hover:block" />
+                  </div>
 
-                {/* Track info */}
-                <div className="flex min-w-0 items-center gap-3">
-                  {track.album?.images?.[0]?.url && track.album?.id && (
+                  {/* Track info */}
+                  <div className="flex min-w-0 items-center gap-3">
+                    {track.album?.images?.[0]?.url && track.album?.id && (
+                      <Link
+                        href={`/album/${track.album.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Image
+                          src={track.album.images[0].url}
+                          alt={track.album.name}
+                          width={40}
+                          height={40}
+                          className="rounded hover:opacity-80 transition-opacity"
+                        />
+                      </Link>
+                    )}
+                    <div className="flex min-w-0 flex-col">
+                      <span className="truncate text-sm font-medium">
+                        {track.name}
+                      </span>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {track.artists.map((a, i) => (
+                          <span key={a.id}>
+                            <Link
+                              href={`/artist/${a.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="hover:text-foreground hover:underline transition-colors"
+                            >
+                              {a.name}
+                            </Link>
+                            {i < track.artists.length - 1 && ", "}
+                          </span>
+                        ))}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Album */}
+                  {track.album?.id ? (
                     <Link
                       href={`/album/${track.album.id}`}
                       onClick={(e) => e.stopPropagation()}
+                      className="hidden truncate text-sm text-muted-foreground md:block text-end pr-5 hover:text-foreground hover:underline transition-colors"
                     >
-                      <Image
-                        src={track.album.images[0].url}
-                        alt={track.album.name}
-                        width={40}
-                        height={40}
-                        className="rounded hover:opacity-80 transition-opacity"
-                      />
+                      {track.album?.name}
                     </Link>
-                  )}
-                  <div className="flex min-w-0 flex-col">
-                    <span className="truncate text-sm font-medium">
-                      {track.name}
+                  ) : (
+                    <span className="hidden truncate text-sm text-muted-foreground md:block text-end pr-5">
+                      {track.album?.name}
                     </span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {track.artists.map((a, i) => (
-                        <span key={a.id}>
-                          <Link
-                            href={`/artist/${a.id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="hover:text-foreground hover:underline transition-colors"
-                          >
-                            {a.name}
-                          </Link>
-                          {i < track.artists.length - 1 && ", "}
-                        </span>
-                      ))}
+                  )}
+
+                  {/* Duration */}
+                  <div className="flex items-center justify-end gap-4 pr-4">
+                    <span className="text-sm text-muted-foreground">
+                      {formatDuration(track.duration_ms)}
                     </span>
                   </div>
                 </div>
-
-                {/* Album */}
-                {track.album?.id ? (
-                  <Link
-                    href={`/album/${track.album.id}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="hidden truncate text-sm text-muted-foreground md:block text-end pr-5 hover:text-foreground hover:underline transition-colors"
-                  >
-                    {track.album?.name}
-                  </Link>
-                ) : (
-                  <span className="hidden truncate text-sm text-muted-foreground md:block text-end pr-5">
-                    {track.album?.name}
-                  </span>
-                )}
-
-                {/* Duration */}
-                <div className="flex items-center justify-end gap-4 pr-4">
-                  <span className="text-sm text-muted-foreground">
-                    {formatDuration(track.duration_ms)}
-                  </span>
-                </div>
-              </div>
+              </TrackContextMenu>
             );
           })}
         </div>

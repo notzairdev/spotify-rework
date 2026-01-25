@@ -15,15 +15,17 @@ interface UseTrackLikeResult {
 }
 
 /**
- * Hook to manage like state for current playing track
+ * Hook to manage like state for a track
+ * @param trackIdParam Optional track ID. If not provided, uses the current playing track.
  */
-export function useTrackLike(): UseTrackLikeResult {
+export function useTrackLike(trackIdParam?: string): UseTrackLikeResult {
   const { state } = useSpotifyPlayer();
   const [isLiked, setIsLiked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [lastCheckedTrackId, setLastCheckedTrackId] = useState<string | null>(null);
 
-  const trackId = state?.track?.id;
+  // Use provided trackId or fallback to current playing track
+  const trackId = trackIdParam ?? state?.track?.id;
 
   // Check if current track is liked when it changes
   useEffect(() => {

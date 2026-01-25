@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   Play,
   Pause,
@@ -14,9 +15,10 @@ import {
   Volume1,
   VolumeX,
   MonitorSpeaker,
+  Heart,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useSpotifyPlayer, useQueue } from "@/lib/spotify";
+import { useSpotifyPlayer, useQueue, useTrackLike } from "@/lib/spotify";
 import { useAuth } from "@/lib/auth";
 import { useLyricsContext } from "@/lib/lrclib";
 import Link from "next/link";
@@ -31,6 +33,7 @@ import {
 } from "@/lib/utils/color-extractor";
 
 export function PlayerBar() {
+  const pathname = usePathname();
   const [ambientColor, setAmbientColor] = useState<HSL | null>(null);
 
   const { isAuthenticated, isPremium } = useAuth();
@@ -51,6 +54,7 @@ export function PlayerBar() {
 
   const shouldFetchQueue = !!state?.track;
   const { data: queueData } = useQueue({ enabled: shouldFetchQueue });
+  const { isLiked, toggleLike, isLoading: likeLoading } = useTrackLike();
 
   const toastShownRef = useRef<string | null>(null);
 
@@ -74,8 +78,10 @@ export function PlayerBar() {
     });
   }, [albumArt]);
 
-  // Next song toast at 15 seconds remaining
+  // Next song toast at 15 seconds remaining (not on /lyrics or /)
   useEffect(() => {
+    // Don't show toast on lyrics page or login
+    if (pathname === "/lyrics" || pathname === "/" || pathname === "/callback") return;
     if (!state?.track || !state.duration || !state.isPlaying) return;
 
     const remaining = state.duration - (state.position ?? 0);
@@ -88,23 +94,25 @@ export function PlayerBar() {
 
     if (
       remaining <= 15000 &&
+      remaining > 0 &&
       toastShownRef.current !== trackId &&
       nextTrackInQueue
     ) {
       toastShownRef.current = trackId;
-      toast("Siguiente", {
+      toast("Up Next", {
         description: `${nextTrackInQueue.name} • ${nextTrackInQueue.artists.map((a) => a.name).join(", ")}`,
         duration: 5000,
         icon: nextTrackInQueue.album.images[2]?.url ? (
           <img
             src={nextTrackInQueue.album.images[2].url}
             alt=""
-            className="w-8 h-8 rounded"
+            className="w-10 h-10 rounded-lg"
           />
         ) : undefined,
       });
     }
   }, [
+    pathname,
     state?.position,
     state?.duration,
     state?.track?.id,
@@ -253,6 +261,25 @@ export function PlayerBar() {
               </div>
             )}
           </div>
+
+          {/* Like button */}
+          {track && (
+            <button
+              onClick={toggleLike}
+              disabled={likeLoading}
+              className={cn(
+                "p-2 rounded-full transition-all",
+                isLiked
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground",
+                likeLoading && "opacity-50"
+              )}
+            >
+              <Heart
+                className={cn("w-4 h-4", isLiked && "fill-current")}
+              />
+            </button>
+          )}
 
           {/* Shuffle */}
           <button

@@ -175,8 +175,10 @@ export function useTopArtists(
 /**
  * Get current user's playlists
  */
-export function useMyPlaylists(limit: number = 50) {
-  return useSpotifyQuery(() => spotifyApi.getMyPlaylists(limit));
+export function useMyPlaylists(limit: number = 50, options?: { enabled?: boolean }) {
+  return useSpotifyQuery(() => spotifyApi.getMyPlaylists(limit), {
+    enabled: options?.enabled ?? true,
+  });
 }
 
 /**
@@ -410,10 +412,24 @@ export function useArtistTopTracks(artistId: string | null) {
 /**
  * Get artist's albums
  */
-export function useArtistAlbums(artistId: string | null) {
-  return useSpotifyQuery(() => spotifyApi.getArtistAlbums(artistId!), {
-    enabled: !!artistId,
-  });
+export function useArtistAlbums(
+  artistId: string | null,
+  includeGroups: ("album" | "single" | "appears_on" | "compilation")[] = ["album", "single"]
+) {
+  return useSpotifyQuery(
+    () => spotifyApi.getArtistAlbums(artistId!, includeGroups),
+    { enabled: !!artistId }
+  );
+}
+
+/**
+ * Get artist's appearances on other albums (collaborations)
+ */
+export function useArtistAppearsOn(artistId: string | null) {
+  return useSpotifyQuery(
+    () => spotifyApi.getArtistAlbums(artistId!, ["appears_on"]),
+    { enabled: !!artistId }
+  );
 }
 
 /**
@@ -506,6 +522,20 @@ export function useCategoryPlaylists(categoryId: string | null, limit: number = 
     () => spotifyApi.getCategoryPlaylists(categoryId!, limit),
     { enabled: !!categoryId }
   );
+}
+
+/**
+ * Get new album releases
+ */
+export function useNewReleases(limit: number = 20) {
+  return useSpotifyQuery(() => spotifyApi.getNewReleases(limit));
+}
+
+/**
+ * Get featured playlists
+ */
+export function useFeaturedPlaylists(limit: number = 20) {
+  return useSpotifyQuery(() => spotifyApi.getFeaturedPlaylists(limit));
 }
 
 // ============================================================================

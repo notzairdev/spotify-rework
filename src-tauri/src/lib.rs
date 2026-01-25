@@ -1,4 +1,5 @@
 mod auth;
+mod window;
 
 use auth::{AppAuthState, SpotifyConfig};
 
@@ -19,6 +20,9 @@ pub fn run() {
             auth::logout,
             auth::is_authenticated,
             auth::start_auth_flow,
+            window::set_fullscreen,
+            window::is_fullscreen,
+            window::toggle_fullscreen,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

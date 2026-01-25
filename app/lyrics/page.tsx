@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { Heart, Maximize2, Minimize2, Music } from "lucide-react";
+import { Heart, Maximize2, Minimize2, Music, SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useSpotifyPlayer, useTrackLike } from "@/lib/spotify";
+import { useSpotifyPlayer, useTrackLike, useQueue } from "@/lib/spotify";
 import { useLyricsContext } from "@/lib/lrclib";
 import { useFullscreen } from "@/lib/fullscreen";
 import { extractDominantColor, hslToString, type HSL } from "@/lib/utils/color-extractor";
@@ -83,6 +83,10 @@ export default function LyricsPage() {
   const track = state?.track;
   const albumArt = track?.album.images[0]?.url;
   const trackId = track?.id;
+
+  // Fetch queue data for next track preview in outro
+  const { data: queueData } = useQueue({ enabled: !!track });
+  const nextTrack = queueData?.queue?.[0];
 
   // Reset fullscreen when leaving the page
   useEffect(() => {
@@ -232,7 +236,7 @@ export default function LyricsPage() {
         />
       )}
       
-      {/* Outro visual overlay - Ambient fade */}
+      {/* Outro visual overlay - Ambient fade with next track preview */}
       {showOutroVisuals && (
         <div 
           className={cn(
@@ -253,42 +257,93 @@ export default function LyricsPage() {
           {albumArt && (
             <div 
               className="absolute inset-0 flex items-center justify-center animate-slow-drift blur-3xl"
-              style={{ opacity: outroState.progress * 0.2 }}
+              style={{ opacity: outroState.progress * 0.15 }}
             >
               <img
                 src={albumArt}
                 alt=""
-                className="w-full h-full object-cover scale-150 animate-ambient-shift"
+                className="w-full h-full object-cover scale-150"
               />
             </div>
           )}
 
-          {/* Center content */}
+          {/* Center content - Current and Next track crossfade */}
           <div 
-            className="absolute inset-0 flex flex-col items-center justify-center gap-6"
+            className="absolute inset-0 flex flex-col items-center justify-center gap-8"
             style={{ opacity: outroState.progress }}
           >
-            {/* Album art */}
-            {albumArt && (
-              <div className="relative animate-gentle-breathe">
+            {/* Current track - fading out */}
+            <div 
+              className="flex flex-col items-center gap-4 transition-all duration-1000"
+              style={{
+                opacity: Math.max(0, 1 - outroState.progress * 1.5),
+                transform: `scale(${1 - outroState.progress * 0.2}) translateY(${-outroState.progress * 20}px)`,
+              }}
+            >
+              {albumArt && (
                 <img
                   src={albumArt}
                   alt=""
-                  className="w-32 h-32 rounded-2xl shadow-2xl"
+                  className="w-28 h-28 rounded-2xl shadow-2xl"
                   style={{
                     boxShadow: ambientColor 
                       ? `0 20px 50px -10px hsl(${hslToString(ambientColor)} / 0.4)` 
                       : '0 20px 50px -10px rgba(0,0,0,0.3)',
                   }}
                 />
+              )}
+              <div className="text-center">
+                <p className="text-lg font-medium text-foreground/70">{track?.name}</p>
+                <p className="text-sm text-muted-foreground">{track?.artists.join(", ")}</p>
+              </div>
+            </div>
+
+            {/* Next track preview - fading in */}
+            {nextTrack && (
+              <div 
+                className="flex flex-col items-center gap-4 transition-all duration-1000 absolute"
+                style={{
+                  opacity: Math.min(1, outroState.progress * 2 - 0.5),
+                  transform: `scale(${0.8 + outroState.progress * 0.2}) translateY(${(1 - outroState.progress) * 30}px)`,
+                }}
+              >
+                <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wider mb-2">
+                  <SkipForward className="w-3 h-3" />
+                  <span>Up Next</span>
+                </div>
+                {nextTrack.album.images[0]?.url && (
+                  <img
+                    src={nextTrack.album.images[0].url}
+                    alt=""
+                    className="w-36 h-36 rounded-2xl shadow-2xl transition-all duration-500"
+                    style={{
+                      boxShadow: '0 25px 60px -15px rgba(0,0,0,0.5)',
+                    }}
+                  />
+                )}
+                <div className="text-center">
+                  <p className="text-xl font-bold text-foreground">{nextTrack.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {nextTrack.artists.map(a => a.name).join(", ")}
+                  </p>
+                </div>
               </div>
             )}
 
-            {/* Track info */}
-            <div className="text-center space-y-1">
-              <p className="text-lg font-medium text-foreground/80">{track?.name}</p>
-              <p className="text-sm text-muted-foreground">{track?.artists.join(", ")}</p>
-            </div>
+            {/* No next track - show completion message */}
+            {!nextTrack && outroState.progress > 0.5 && (
+              <div 
+                className="flex flex-col items-center gap-3 absolute"
+                style={{
+                  opacity: Math.min(1, (outroState.progress - 0.5) * 2),
+                }}
+              >
+                <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center">
+                  <Music className="w-8 h-8 text-primary" />
+                </div>
+                <p className="text-lg font-medium text-muted-foreground">End of Queue</p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -351,7 +406,7 @@ export default function LyricsPage() {
           hideLyricsDuringOutro && "opacity-0 pointer-events-none"
         )}
       >
-        <div className={cn("max-w-3xl", isFullscreen && "mx-auto")}>
+        <div className="max-w-3xl">
           {/* Loading state - friendly indicator */}
           {isLoading && (
             <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -359,9 +414,11 @@ export default function LyricsPage() {
                 <div className="w-16 h-16 rounded-full bg-primary/10 animate-pulse" />
                 <Music className="w-8 h-8 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
               </div>
-              <h2 className="text-lg font-medium text-muted-foreground mb-2">Buscando letra...</h2>
+              <h2 className="text-lg font-medium text-muted-foreground mb-2">
+                Wait...
+              </h2>
               <p className="text-sm text-muted-foreground/60">
-                Esto puede tomar unos segundos
+                Fetching the lyrics for you.
               </p>
             </div>
           )}

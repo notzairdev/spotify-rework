@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { ListMusic, Music } from "lucide-react";
 import {
   Popover,
@@ -19,6 +19,15 @@ export function QueuePopover({ className, triggerClassName }: QueuePopoverProps)
   const [isOpen, setIsOpen] = useState(false);
   const [hasOpened, setHasOpened] = useState(false);
   const { data: queue, isLoading, refetch } = useQueue({ enabled: hasOpened });
+
+  // Dedupe consecutive tracks with the same ID (fixes single track loop issue)
+  const dedupedQueue = useMemo(() => {
+    if (!queue?.queue) return [];
+    return queue.queue.filter((track, index, arr) => {
+      if (index === 0) return true;
+      return track.id !== arr[index - 1].id;
+    });
+  }, [queue?.queue]);
 
   // Only start fetching after first open
   const handleOpenChange = (open: boolean) => {
@@ -87,11 +96,11 @@ export function QueuePopover({ className, triggerClassName }: QueuePopoverProps)
               )}
 
               {/* Next Up */}
-              {queue.queue.length > 0 && (
+              {dedupedQueue.length > 0 && (
                 <div>
                   <p className="text-xs font-medium text-muted-foreground px-2 mb-2">Next Up</p>
                   <div className="space-y-1">
-                    {queue.queue.slice(0, 10).map((track, index) => (
+                    {dedupedQueue.slice(0, 10).map((track, index) => (
                       <div
                         key={`${track.id}-${index}`}
                         className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors"
@@ -116,9 +125,9 @@ export function QueuePopover({ className, triggerClassName }: QueuePopoverProps)
                         </div>
                       </div>
                     ))}
-                    {queue.queue.length > 10 && (
+                    {dedupedQueue.length > 10 && (
                       <p className="text-xs text-muted-foreground text-center py-2">
-                        +{queue.queue.length - 10} more tracks
+                        +{dedupedQueue.length - 10} more tracks
                       </p>
                     )}
                   </div>

@@ -59,6 +59,8 @@ export {
   // Browse
   useCategories,
   useCategoryPlaylists,
+  useNewReleases,
+  useFeaturedPlaylists,
   // Library
   useSavedTracks,
   useSaveTracks,
@@ -70,6 +72,7 @@ export {
   useArtist,
   useArtistTopTracks,
   useArtistAlbums,
+  useArtistAppearsOn,
   useRelatedArtists,
   useFollowedArtists,
   // Albums
