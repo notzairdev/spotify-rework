@@ -140,18 +140,6 @@ export default function ArtistPage({ params }: PageProps) {
           />
         )}
 
-        {/* Back button */}
-        <div className="relative z-10 flex items-center gap-2 px-6 py-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.back()}
-            className="size-8"
-          >
-            <ArrowLeft className="size-4" />
-          </Button>
-        </div>
-
         {/* Artist Header */}
         <div className="relative z-10 flex flex-col items-center gap-6 px-6 pb-8 text-center">
           {/* Artist Image */}

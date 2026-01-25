@@ -62,19 +62,7 @@ export default function UserProfilePage({ params }: PageProps) {
 
   return (
     <div className="py-26 container mx-auto">
-      {/* Back button */}
-      <div className="mb-6">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => router.back()}
-          className="size-8"
-        >
-          <ArrowLeft className="size-4" />
-        </Button>
-      </div>
-
-      {/* Header */}
+      {/* Header */}}
       <div className="mb-12 flex flex-col gap-8 lg:flex-row">
         <div className="relative size-64 shrink-0 overflow-hidden rounded-2xl bg-linear-to-br from-primary/30 to-accent/30 shadow-2xl">
           {userImage ? (

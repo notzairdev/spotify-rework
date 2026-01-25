@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Play,
   Pause,
@@ -13,20 +13,28 @@ import {
   Volume2,
   Volume1,
   VolumeX,
+  MonitorSpeaker,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useSpotifyPlayer, useQueue } from "@/lib/spotify";
 import { useAuth } from "@/lib/auth";
 import { useLyricsContext } from "@/lib/lrclib";
-import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Slider } from "@/components/ui/slider";
 import { QueuePopover } from "./queue-popover";
 import { DevicePopover } from "./device-popover";
+import { cn } from "@/lib/utils";
+import {
+  extractDominantColor,
+  hslToString,
+  type HSL,
+} from "@/lib/utils/color-extractor";
 
 export function PlayerBar() {
+  const [ambientColor, setAmbientColor] = useState<HSL | null>(null);
+
   const { isAuthenticated, isPremium } = useAuth();
-  const { lyricsAvailable, isLoading: lyricsLoading } = useLyricsContext();
+  const { lyricsAvailable } = useLyricsContext();
   const {
     state,
     isReady,
@@ -40,53 +48,73 @@ export function PlayerBar() {
     toggleShuffle,
     cycleRepeatMode,
   } = useSpotifyPlayer();
-  // Only fetch queue when there's a track playing
+
   const shouldFetchQueue = !!state?.track;
   const { data: queueData } = useQueue({ enabled: shouldFetchQueue });
-  
-  // Track if we've shown toast for current track
-  const toastShownRef = useRef<string | null>(null);
-  const lastTrackIdRef = useRef<string | null>(null);
 
-  // Calculate current progress percentage
+  const toastShownRef = useRef<string | null>(null);
+
   const currentProgress =
     state?.position != null && state?.duration != null && state.duration > 0
       ? (state.position / state.duration) * 100
       : 0;
 
+  const track = state?.track;
+  const albumArt = track?.album.images[0]?.url;
+  const isPlaying = state?.isPlaying ?? false;
+
+  // Extract ambient color from album art
+  useEffect(() => {
+    if (!albumArt) {
+      setAmbientColor(null);
+      return;
+    }
+    extractDominantColor(albumArt).then((color) => {
+      if (color) setAmbientColor(color);
+    });
+  }, [albumArt]);
+
   // Next song toast at 15 seconds remaining
   useEffect(() => {
     if (!state?.track || !state.duration || !state.isPlaying) return;
-    
+
     const remaining = state.duration - (state.position ?? 0);
     const trackId = state.track.id;
     const nextTrackInQueue = queueData?.queue?.[0];
-    
-    // Reset toast shown when track changes
+
     if (toastShownRef.current !== null && toastShownRef.current !== trackId) {
       toastShownRef.current = null;
     }
-    
-    // Show toast when under 15 seconds remaining + haven't shown for this track + has next track
-    if (remaining <= 15000 && toastShownRef.current !== trackId && nextTrackInQueue) {
+
+    if (
+      remaining <= 15000 &&
+      toastShownRef.current !== trackId &&
+      nextTrackInQueue
+    ) {
       toastShownRef.current = trackId;
       toast("Siguiente", {
-        description: `${nextTrackInQueue.name} • ${nextTrackInQueue.artists.map(a => a.name).join(", ")}`,
+        description: `${nextTrackInQueue.name} • ${nextTrackInQueue.artists.map((a) => a.name).join(", ")}`,
         duration: 5000,
         icon: nextTrackInQueue.album.images[2]?.url ? (
-          <img 
-            src={nextTrackInQueue.album.images[2].url} 
-            alt="" 
+          <img
+            src={nextTrackInQueue.album.images[2].url}
+            alt=""
             className="w-8 h-8 rounded"
           />
         ) : undefined,
       });
     }
-  }, [state?.position, state?.duration, state?.track?.id, state?.isPlaying, queueData?.queue]);
+  }, [
+    state?.position,
+    state?.duration,
+    state?.track?.id,
+    state?.isPlaying,
+    queueData?.queue,
+  ]);
 
-  const handleSeek = (percentage: number) => {
+  const handleSeek = (value: number[]) => {
     if (state?.duration) {
-      const positionMs = (percentage / 100) * state.duration;
+      const positionMs = (value[0] / 100) * state.duration;
       seek(positionMs);
     }
   };
@@ -96,34 +124,38 @@ export function PlayerBar() {
     return null;
   }
 
-  // Premium required message
+  // Floating pill for non-premium or error states
   if (!isPremium) {
     return (
-      <div className="fixed bottom-0 left-0 right-0 h-20 bg-card border-t flex items-center justify-center">
-        <p className="text-muted-foreground">
-          Spotify Premium required for playback
-        </p>
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+        <div className="bg-card/90 backdrop-blur-2xl border border-white/10 rounded-full px-6 py-3 shadow-2xl shadow-black/30">
+          <p className="text-sm text-muted-foreground">
+            Premium is required to play music on this app.
+          </p>
+        </div>
       </div>
     );
   }
 
-  // Error state
   if (error) {
     const isEMEError = error.includes("DRM") || error.includes("Widevine");
     return (
-      <div className="fixed bottom-0 left-0 right-0 h-20 bg-card border-t flex items-center justify-center px-4">
-        <div className="text-center">
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+        <div className="bg-card/90 backdrop-blur-2xl border border-white/10 rounded-full px-6 py-3 shadow-2xl shadow-black/30">
           <p
-            className={
-              isEMEError ? "text-muted-foreground" : "text-destructive"
-            }
+            className={cn(
+              "text-sm",
+              isEMEError ? "text-muted-foreground" : "text-destructive",
+            )}
           >
-            {isEMEError ? "Playback not available on this platform" : error}
+            {isEMEError
+              ? "Reproducción no disponible en esta plataforma"
+              : error}
           </p>
           {isEMEError && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Use Spotify Connect from your phone or the official app to control
-              playback
+            <p className="text-xs text-muted-foreground mt-1 text-center">
+              DRM playback is not supported on this platform. Please use an
+              alternative device.
             </p>
           )}
         </div>
@@ -131,183 +163,223 @@ export function PlayerBar() {
     );
   }
 
-  // Loading state
   if (!isReady) {
     return (
-      <div className="fixed bottom-0 left-0 right-0 h-20 bg-card border-t flex items-center justify-center">
-        <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        <span className="ml-2 text-muted-foreground">
-          Connecting to Spotify...
-        </span>
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+        <div className="bg-card/90 backdrop-blur-2xl border border-white/10 rounded-full px-6 py-3 shadow-2xl shadow-black/30 flex items-center gap-3">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <span className="text-sm text-muted-foreground">Connecting...</span>
+        </div>
       </div>
     );
   }
 
-  const track = state?.track;
-  const albumArt = track?.album.images[0]?.url;
-
   return (
-    <div className="fixed bottom-0 left-0 right-0 h-18 border-t flex flex-col bg-card/80 backdrop-blur-3xl">
-      <div className="relative h-3 -mt-1.5 group cursor-pointer w-full flex items-center">
-        <div className="absolute left-0 right-0 h-1 top-1/2 -translate-y-1/2">
-          <div className="absolute inset-0 bg-white/4" />
-          <div
-            className="absolute left-0 top-0 h-full bg-linear-to-r from-primary to-primary/70 transition-all duration-150"
-            style={{ width: `${currentProgress}%` }}
-          />
-        </div>
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value={currentProgress}
-          onChange={(e) => handleSeek(Number(e.target.value))}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-        />
-        {/* Hover thumb */}
-        <div
-          className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-primary rounded-full shadow-lg shadow-primary/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
-          style={{ left: `${currentProgress}%`, marginLeft: "-6px" }}
-        />
-      </div>
-      <div className="h-18 px-5 flex items-center gap-6">
-        {/* Track Info */}
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          {albumArt ? (
-            <img
-              src={albumArt}
-              alt={track?.album.name}
-              className="h-12 w-12 rounded-full shadow-sm"
-            />
-          ) : null}
-          {track ? (
-            <div className="min-w-0">
-              <p className="text-[13px] font-medium text-foreground hover:underline decoration-foreground/30 truncate block leading-tight">
-                {track.name}
-              </p>
-              <p className="text-[11px] text-muted-foreground hover:text-foreground truncate block transition-colors leading-tight mt-0.5">
-                {track.artists.join(", ")}
-              </p>
-              <div className="flex items-center gap-1.5 mt-1">
-                <span className="text-[10px] font-mono text-muted-foreground/70">
-                  {formatTime(state?.position ?? 0)}
-                </span>
-                <span className="text-[10px] text-muted-foreground/40">/</span>
-                <span className="text-[10px] font-mono text-muted-foreground/50">
-                  {formatTime(state?.duration ?? 0)}
-                </span>
+    <div
+      className={cn(
+        "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-500",
+        track
+          ? "opacity-100 translate-y-0"
+          : "opacity-0 translate-y-4 pointer-events-none",
+      )}
+    >
+      {/* Ambient glow */}
+      <div
+        className="absolute inset-0 opacity-40 blur-3xl -z-10 scale-150 transition-all duration-700"
+        style={{
+          background: ambientColor
+            ? `radial-gradient(ellipse, hsl(${hslToString(ambientColor)} / 0.7), transparent 70%)`
+            : `radial-gradient(ellipse, hsl(var(--primary) / 0.5), transparent 70%)`,
+        }}
+      />
+
+      <div
+        className={cn(
+          "bg-card/85 backdrop-blur-2xl border border-white/10 rounded-[28px] shadow-2xl shadow-black/40",
+        )}
+      >
+        <div className="flex items-center px-5 py-3 gap-4">
+          {/* Album art with spinning animation */}
+          <div className="relative shrink-0">
+            {albumArt ? (
+              <img
+                src={albumArt}
+                alt={track?.album.name}
+                className={cn(
+                  "w-14 h-14 rounded-full object-cover shadow-lg",
+                  isPlaying && "animate-[spin_8s_linear_infinite]",
+                )}
+              />
+            ) : (
+              <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center">
+                <MonitorSpeaker className="w-5 h-5 text-muted-foreground" />
               </div>
-            </div>
-          ) : (
-            <div className="min-w-0">
-              <p className="text-muted-foreground text-[13px]">
-                Currently no track playing
-              </p>
-              <button
-                onClick={transferPlayback}
-                className="text-[10px] text-primary hover:underline"
-              >
-                Transfer playback here
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Controls */}
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={toggleShuffle}
-            className={state?.shuffle ? "text-primary" : ""}
-          >
-            <Shuffle className={`h-5 w-5 ${state?.shuffle ? "text-primary" : "text-white"}`} />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={previousTrack}>
-            <SkipBack className="h-5 w-5 text-white" fill="#fff" />
-          </Button>
-          <Button
-            variant="default"
-            size="icon"
-            className="h-10 w-10 rounded-full bg-white"
-            onClick={togglePlay}
-          >
-            {state?.isPlaying ? (
-              <Pause className="h-5 w-5 text-black" fill="#000" />
-            ) : (
-              <Play className="h-5 w-5 ml-0.5 text-black" fill="#000" />
             )}
-          </Button>
-          <Button variant="ghost" size="icon" onClick={nextTrack}>
-            <SkipForward className="h-5 w-5 text-white" fill="#fff" />
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={cycleRepeatMode}
-            className={state?.repeatMode !== "off" ? "text-primary" : ""}
-          >
-            {state?.repeatMode === "track" ? (
-              <Repeat1 className="h-5 w-5 text-primary" />
-            ) : (
-              <Repeat className={`h-5 w-5 ${state?.repeatMode === "context" ? "text-primary" : "text-white"}`} />
-            )}
-          </Button>
-        </div>
+          </div>
 
-        {/* Progress (simplified) */}
-        <div className="flex items-center gap-1 flex-1 justify-end">
-          {state && (
-            <>
-              {lyricsAvailable ? (
-                <Link
-                  href="/lyrics"
-                  className="p-2.5 rounded-full text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-                >
-                  <Mic2 className="w-4 h-4" />
-                </Link>
-              ) : (
-                <button
-                  disabled
-                  className="p-2.5 rounded-full text-muted-foreground/20 cursor-not-allowed"
-                >
-                  <Mic2 className="w-4 h-4" />
-                </button>
-              )}
-              {/* Queue */}
-              <QueuePopover />
-
-              {/* Devices */}
-              <DevicePopover />
-
-              {/* Divider */}
-              <div className="w-px h-5 bg-white/6 mx-2" />
-
-              <div className="flex items-center gap-2 group">
-                <button className="p-2.5 rounded-full text-muted-foreground/50 hover:text-muted-foreground transition-colors">
-                  {state.volume === 0 ? (
-                    <VolumeX className="w-4 h-4" />
-                  ) : state.volume < 0.5 ? (
-                    <Volume1 className="w-4 h-4" />
-                  ) : (
-                    <Volume2 className="w-4 h-4" />
-                  )}
-                </button>
-                <div className="w-24">
-                  <Slider 
-                    value={[state.volume * 100]}
-                    onValueChange={(value) => setVolume(value[0] / 100)}
-                    max={100}
-                    step={1}
-                    className="opacity-60 hover:opacity-100 transition-opacity"
-                    trackClassName="data-horizontal:h-1"
-                    rangeClassName="data-horizontal:h-1"
-                    thumbClassName="size-3 rounded-full"
-                  />
+          {/* Track info - always visible */}
+          <div className="w-40 min-w-0">
+            {track ? (
+              <div>
+                <p className="text-[13px] font-medium text-foreground truncate">
+                  {track.name}
+                </p>
+                <p className="text-[11px] text-muted-foreground truncate">
+                  {track.artists.join(", ")}
+                </p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-[10px] font-mono text-muted-foreground/70">
+                    {formatTime(state?.position ?? 0)}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground/40">
+                    /
+                  </span>
+                  <span className="text-[10px] font-mono text-muted-foreground/50">
+                    {formatTime(state?.duration ?? 0)}
+                  </span>
                 </div>
               </div>
-            </>
-          )}
+            ) : (
+              <div>
+                <p className="text-[13px] text-muted-foreground">
+                  Not playing
+                </p>
+                <button
+                  onClick={transferPlayback}
+                  className="text-[10px] text-primary hover:underline"
+                >
+                  Transfer here
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Shuffle */}
+          <button
+            onClick={toggleShuffle}
+            className={cn(
+              "p-2 rounded-full transition-colors",
+              state?.shuffle
+                ? "text-primary"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Shuffle className="w-4 h-4" />
+          </button>
+
+          {/* Main controls */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={previousTrack}
+              className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <SkipBack className="w-4 h-4" fill="currentColor" />
+            </button>
+
+            <button
+              onClick={togglePlay}
+              className="w-11 h-11 rounded-full bg-foreground text-background flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg"
+            >
+              {isPlaying ? (
+                <Pause className="w-5 h-5" fill="currentColor" />
+              ) : (
+                <Play className="w-5 h-5 ml-0.5" fill="currentColor" />
+              )}
+            </button>
+
+            <button
+              onClick={nextTrack}
+              className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <SkipForward className="w-4 h-4" fill="currentColor" />
+            </button>
+          </div>
+
+          {/* Repeat */}
+          <button
+            onClick={cycleRepeatMode}
+            className={cn(
+              "p-2 rounded-full transition-colors",
+              state?.repeatMode !== "off"
+                ? "text-primary"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {state?.repeatMode === "track" ? (
+              <Repeat1 className="w-4 h-4" />
+            ) : (
+              <Repeat className="w-4 h-4" />
+            )}
+          </button>
+
+          {/* Divider */}
+          <div className="w-px h-6 bg-white/10" />
+
+          {/* Extended controls */}
+          <div className="flex items-center gap-1">
+            {/* Lyrics */}
+            {lyricsAvailable ? (
+              <Link
+                href="/lyrics"
+                className="p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Mic2 className="w-4 h-4" />
+              </Link>
+            ) : (
+              <button
+                disabled
+                className="p-2 rounded-full text-muted-foreground/30 cursor-not-allowed"
+              >
+                <Mic2 className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* Queue */}
+            <QueuePopover triggerClassName="p-2 rounded-full text-muted-foreground hover:text-foreground" />
+
+            {/* Devices */}
+            <DevicePopover triggerClassName="p-2 rounded-full text-muted-foreground hover:text-foreground" />
+          </div>
+
+          {/* Volume */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setVolume(state?.volume === 0 ? 0.5 : 0)}
+              className="p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            >
+              {state?.volume === 0 ? (
+                <VolumeX className="w-4 h-4" />
+              ) : (state?.volume ?? 0) < 0.5 ? (
+                <Volume1 className="w-4 h-4" />
+              ) : (
+                <Volume2 className="w-4 h-4" />
+              )}
+            </button>
+            <Slider
+              value={[(state?.volume ?? 0.5) * 100]}
+              onValueChange={(value) => setVolume(value[0] / 100)}
+              max={100}
+              step={1}
+              className="w-20 opacity-70 hover:opacity-100 transition-opacity"
+              trackClassName="data-horizontal:h-1"
+              rangeClassName="data-horizontal:h-1"
+              thumbClassName="size-3 rounded-full"
+            />
+          </div>
+        </div>
+
+        {/* Seek slider at bottom */}
+        <div className="h-6 px-4 pb-2">
+          <Slider
+            value={[currentProgress]}
+            onValueChange={handleSeek}
+            max={100}
+            step={0.1}
+            className="w-full"
+            trackClassName="data-horizontal:h-1"
+            rangeClassName="data-horizontal:h-1 bg-primary"
+            thumbClassName="size-3 rounded-full opacity-0 hover:opacity-100 transition-opacity"
+          />
         </div>
       </div>
     </div>

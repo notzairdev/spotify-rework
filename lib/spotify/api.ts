@@ -941,3 +941,76 @@ export async function getRecommendations(
 export async function getAvailableGenreSeeds(): Promise<{ genres: string[] }> {
   return spotifyFetch<{ genres: string[] }>("/recommendations/available-genre-seeds");
 }
+
+// ============================================================================
+// Browse API
+// ============================================================================
+
+export interface SpotifyCategory {
+  id: string;
+  name: string;
+  icons: SpotifyImage[];
+  href: string;
+}
+
+export interface SpotifyCategoriesResponse {
+  categories: {
+    items: SpotifyCategory[];
+    total: number;
+    limit: number;
+    offset: number;
+    next: string | null;
+  };
+}
+
+/**
+ * Get browse categories
+ */
+export async function getCategories(
+  limit: number = 50,
+  offset: number = 0,
+  locale?: string,
+  country?: string
+): Promise<SpotifyCategoriesResponse> {
+  const params = new URLSearchParams({
+    limit: limit.toString(),
+    offset: offset.toString(),
+  });
+  if (locale) params.set("locale", locale);
+  if (country) params.set("country", country);
+  return spotifyFetch<SpotifyCategoriesResponse>(`/browse/categories?${params}`);
+}
+
+/**
+ * Get a single category
+ */
+export async function getCategory(
+  categoryId: string,
+  locale?: string,
+  country?: string
+): Promise<SpotifyCategory> {
+  const params = new URLSearchParams();
+  if (locale) params.set("locale", locale);
+  if (country) params.set("country", country);
+  const queryStr = params.toString() ? `?${params}` : "";
+  return spotifyFetch<SpotifyCategory>(`/browse/categories/${encodeURIComponent(categoryId)}${queryStr}`);
+}
+
+/**
+ * Get category playlists
+ */
+export async function getCategoryPlaylists(
+  categoryId: string,
+  limit: number = 50,
+  offset: number = 0,
+  country?: string
+): Promise<{ playlists: SpotifyPaginatedResponse<SpotifyPlaylist> }> {
+  const params = new URLSearchParams({
+    limit: limit.toString(),
+    offset: offset.toString(),
+  });
+  if (country) params.set("country", country);
+  return spotifyFetch<{ playlists: SpotifyPaginatedResponse<SpotifyPlaylist> }>(
+    `/browse/categories/${encodeURIComponent(categoryId)}/playlists?${params}`
+  );
+}

@@ -81,13 +81,37 @@ export interface SpotifyPlayerContextValue {
 const SpotifyPlayerContext = createContext<SpotifyPlayerContextValue | null>(null);
 
 const SPOTIFY_PLAYER_SDK_URL = "https://sdk.scdn.co/spotify-player.js";
+const VOLUME_STORAGE_KEY = "spotify-rework-volume";
+
+/**
+ * Get saved volume from localStorage
+ */
+function getSavedVolume(): number {
+  if (typeof window === "undefined") return 0.5;
+  try {
+    const saved = localStorage.getItem(VOLUME_STORAGE_KEY);
+    if (saved) {
+      const vol = parseFloat(saved);
+      if (!isNaN(vol) && vol >= 0 && vol <= 1) return vol;
+    }
+  } catch {}
+  return 0.5;
+}
+
+/**
+ * Save volume to localStorage
+ */
+function saveVolume(volume: number): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(VOLUME_STORAGE_KEY, volume.toString());
+  } catch {}
+}
 
 interface SpotifyPlayerProviderProps {
   children: ReactNode;
   /** Player name shown in Spotify Connect */
   playerName?: string;
-  /** Initial volume (0-1) */
-  initialVolume?: number;
 }
 
 /**
@@ -116,7 +140,6 @@ async function checkEMESupport(): Promise<boolean> {
 export function SpotifyPlayerProvider({
   children,
   playerName = "Spotify Rework",
-  initialVolume = 0.5,
 }: SpotifyPlayerProviderProps) {
   const { isAuthenticated, isPremium, accessToken } = useAuth();
   const [player, setPlayer] = useState<Spotify.Player | null>(null);
@@ -128,9 +151,13 @@ export function SpotifyPlayerProvider({
   const [sdkLoaded, setSdkLoaded] = useState(false);
   const [emeSupported, setEmeSupported] = useState<boolean | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  
+  // Use saved volume or default
+  const initialVolume = useMemo(() => getSavedVolume(), []);
 
   const playerRef = useRef<Spotify.Player | null>(null);
   const accessTokenRef = useRef<string | null>(null);
+  const hasAutoTransferredRef = useRef(false);
 
   // Keep token ref updated
   useEffect(() => {
@@ -299,12 +326,36 @@ export function SpotifyPlayerProvider({
       });
 
       // Ready
-      newPlayer.addListener("ready", ({ device_id }) => {
+      newPlayer.addListener("ready", async ({ device_id }) => {
         devLog("Player ready with device ID:", device_id);
         setDeviceId(device_id);
         setIsReady(true);
         setIsLoading(false);
         setError(null);
+        
+        // Auto-transfer playback to this device on first ready
+        if (!hasAutoTransferredRef.current) {
+          hasAutoTransferredRef.current = true;
+          try {
+            devLog("Auto-transferring playback to this device...");
+            const token = await getAccessToken();
+            await fetch("https://api.spotify.com/v1/me/player", {
+              method: "PUT",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                device_ids: [device_id],
+                play: false, // Don't auto-play, just transfer
+              }),
+            });
+            devLog("Playback transferred successfully");
+          } catch (e) {
+            devError("Failed to auto-transfer playback:", e);
+            // Don't set error - this is not critical
+          }
+        }
       });
 
       // Not ready
@@ -471,6 +522,8 @@ export function SpotifyPlayerProvider({
       await player?.setVolume(volume);
       // Update local state immediately
       setState((prev) => prev ? { ...prev, volume } : null);
+      // Persist to localStorage
+      saveVolume(volume);
     },
     [player]
   );

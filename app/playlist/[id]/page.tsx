@@ -119,18 +119,6 @@ export default function PlaylistPage({ params }: PageProps) {
 
   return (
     <div className="flex flex-col container mx-auto py-26">
-      {/* Back button */}
-      <div className="sticky top-0 z-10 flex items-center gap-2 bg-transparent px-6 py-4 backdrop-blur-sm">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => router.back()}
-          className="size-8"
-        >
-          <ArrowLeft className="size-4" />
-        </Button>
-      </div>
-
       {/* Header */}
       <div className="flex justify-between gap-6 px-6 pb-6 md:flex-row md:items-end">
         {/* Info */}

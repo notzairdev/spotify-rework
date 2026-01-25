@@ -1,27 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Play,
   Pause,
   SkipBack,
   SkipForward,
   Heart,
-  ListMusic,
 } from "lucide-react";
 import { useSpotifyPlayer, useTrackLike } from "@/lib/spotify";
 import { cn } from "@/lib/utils";
 import { extractDominantColor, hslToString, type HSL } from "@/lib/utils/color-extractor";
-import { useEffect } from "react";
 import { QueuePopover } from "./queue-popover";
 
 /**
- * Dynamic Island style player for the lyrics view
- * Floats at the bottom and expands on hover
+ * Compact Dynamic Island for lyrics view
+ * Morphs from the main player bar with a liquid glass effect
  */
 export function DynamicIsland() {
   const [isHovered, setIsHovered] = useState(false);
   const [ambientColor, setAmbientColor] = useState<HSL | null>(null);
+  const [isVisible, setIsVisible] = useState(false);
   const { state, togglePlay, nextTrack, previousTrack } = useSpotifyPlayer();
   const { isLiked, toggleLike } = useTrackLike();
 
@@ -46,78 +45,129 @@ export function DynamicIsland() {
     });
   }, [albumArt]);
 
+  // Animate in on mount (liquid glass morph effect)
+  useEffect(() => {
+    const timer = setTimeout(() => setIsVisible(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!track) return null;
+
   return (
     <div 
-      className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-500 ${track ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
+      className={cn(
+        "fixed bottom-6 left-1/2 -translate-x-1/2 z-50",
+        // Liquid glass morph animation
+        "transition-all duration-700 ease-out",
+        isVisible 
+          ? "opacity-100 scale-100 translate-y-0" 
+          : "opacity-0 scale-75 translate-y-8"
+      )}
     >
-      {/* Ambient glow */}
+      {/* Ambient glow - more subtle for lyrics view */}
       <div
-        className="absolute inset-0 opacity-50 blur-2xl -z-10 scale-150 transition-all duration-500"
+        className={cn(
+          "absolute inset-0 blur-2xl -z-10 scale-125 transition-all duration-700",
+          isVisible ? "opacity-40" : "opacity-0"
+        )}
         style={{
           background: ambientColor
-            ? `radial-gradient(ellipse, hsl(${hslToString(ambientColor)} / 0.6), transparent 70%)`
-            : `radial-gradient(ellipse, hsl(var(--primary) / 0.5), transparent 70%)`,
+            ? `radial-gradient(ellipse, hsl(${hslToString(ambientColor)} / 0.5), transparent 70%)`
+            : `radial-gradient(ellipse, hsl(var(--primary) / 0.4), transparent 70%)`,
         }}
       />
 
+      {/* Liquid glass container */}
       <div
         className={cn(
-          "bg-card/90 backdrop-blur-2xl border border-white/8 rounded-full shadow-2xl shadow-black/30",
+          // Base styles - compact pill shape
+          "backdrop-blur-xl border rounded-full shadow-2xl shadow-black/50",
+          // Liquid glass effect
+          "relative overflow-hidden",
+          // Hover expansion
           "transition-all duration-500 ease-out",
-          isHovered ? "px-6 py-3" : "px-4 py-2"
+          isHovered ? "px-5 py-2.5" : "px-4 py-2"
         )}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
+        style={{
+          // Subtle inner glow for glass effect
+          boxShadow: ambientColor
+            ? `inset 0 1px 1px rgba(255,255,255,0.1), 0 20px 40px -10px hsl(${hslToString(ambientColor)} / 0.3)`
+            : "inset 0 1px 1px rgba(255,255,255,0.1), 0 20px 40px -10px rgba(0,0,0,0.5)",
+        }}
       >
+        {/* Liquid glass shine overlay */}
+        <div 
+          className="absolute inset-0 pointer-events-none rounded-full"
+          style={{ height: "50%" }}
+        />
+        
+        {/* Progress arc around the container */}
+        <div 
+          className="absolute inset-0 rounded-full pointer-events-none"
+          style={{
+            background: `conic-gradient(from 0deg, hsl(var(--primary) / 0.3) ${progress}%, transparent ${progress}%)`,
+            mask: "radial-gradient(farthest-side, transparent calc(100% - 2px), black calc(100% - 2px))",
+            WebkitMask: "radial-gradient(farthest-side, transparent calc(100% - 2px), black calc(100% - 2px))",
+          }}
+        />
+
         <div
           className={cn(
-            "flex items-center transition-all duration-500",
-            isHovered ? "gap-4" : "gap-3"
+            "flex items-center relative z-10",
+            "transition-all duration-500",
+            isHovered ? "gap-3" : "gap-2"
           )}
         >
-          {/* Album art with progress ring */}
+          {/* Album art - vinyl record effect */}
           <div className="relative">
             <img
               src={albumArt}
-              alt={track?.name ?? ""}
+              alt={track.name}
               className={cn(
-                "rounded-full object-cover shadow-lg transition-all duration-500",
-                isHovered ? "w-12 h-12" : "w-10 h-10",
-                isPlaying && "animate-spin-slow"
+                "rounded-full object-cover shadow-lg border border-white/10",
+                "transition-all duration-500",
+                isHovered ? "w-10 h-10" : "w-9 h-9",
+                isPlaying && "animate-[spin_8s_linear_infinite]"
               )}
-              style={{ animationDuration: "8s" }}
             />
+            {/* Center dot like a vinyl */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="w-2 h-2 rounded-full bg-black/50 border border-white/20" />
+            </div>
           </div>
 
           {/* Track info - only on hover */}
           <div
             className={cn(
               "overflow-hidden transition-all duration-500",
-              isHovered ? "w-32 opacity-100" : "w-0 opacity-0"
+              isHovered ? "w-28 opacity-100" : "w-0 opacity-0"
             )}
           >
-            <p className="text-xs font-medium text-foreground truncate">
-              {track?.name}
+            <p className="text-xs font-medium text-white truncate">
+              {track.name}
             </p>
-            <p className="text-[10px] text-muted-foreground truncate">
-              {track?.artists.join(", ")}
+            <p className="text-[10px] text-white/60 truncate">
+              {track.artists.join(", ")}
             </p>
           </div>
 
           {/* Controls */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5">
             <button
               onClick={previousTrack}
-              className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+              className="p-1.5 text-white/60 hover:text-white transition-colors"
             >
-              <SkipBack className="w-4 h-4" fill="currentColor" />
+              <SkipBack className="w-3.5 h-3.5" fill="currentColor" />
             </button>
 
             <button
               onClick={togglePlay}
               className={cn(
-                "rounded-full bg-foreground text-background flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg",
-                isHovered ? "w-10 h-10" : "w-9 h-9"
+                "rounded-full bg-white text-black flex items-center justify-center",
+                "hover:scale-105 active:scale-95 transition-all shadow-lg",
+                isHovered ? "w-9 h-9" : "w-8 h-8"
               )}
             >
               {isPlaying ? (
@@ -129,9 +179,9 @@ export function DynamicIsland() {
 
             <button
               onClick={nextTrack}
-              className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+              className="p-1.5 text-white/60 hover:text-white transition-colors"
             >
-              <SkipForward className="w-4 h-4" fill="currentColor" />
+              <SkipForward className="w-3.5 h-3.5" fill="currentColor" />
             </button>
           </div>
 
@@ -139,15 +189,15 @@ export function DynamicIsland() {
           <button
             onClick={toggleLike}
             className={cn(
-              "transition-all duration-500",
-              isHovered ? "opacity-100 w-8" : "opacity-0 w-0",
+              "transition-all duration-500 p-1.5",
+              isHovered ? "opacity-100 w-7" : "opacity-0 w-0",
               isLiked
                 ? "text-primary"
-                : "text-muted-foreground hover:text-foreground"
+                : "text-white/60 hover:text-white"
             )}
           >
             <Heart
-              className="w-4 h-4"
+              className="w-3.5 h-3.5"
               fill={isLiked ? "currentColor" : "none"}
             />
           </button>
@@ -156,11 +206,11 @@ export function DynamicIsland() {
           <div
             className={cn(
               "transition-all duration-500 overflow-hidden",
-              isHovered ? "opacity-100 w-8" : "opacity-0 w-0"
+              isHovered ? "opacity-100 w-7" : "opacity-0 w-0"
             )}
           >
             <QueuePopover 
-              triggerClassName="p-0 text-muted-foreground hover:text-foreground"
+              triggerClassName="p-1.5 text-white/60 hover:text-white"
             />
           </div>
         </div>

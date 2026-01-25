@@ -486,3 +486,107 @@ export function useRecommendations() {
 export function useAvailableGenreSeeds() {
   return useSpotifyQuery(() => spotifyApi.getAvailableGenreSeeds());
 }
+
+// ============================================================================
+// Browse Hooks
+// ============================================================================
+
+/**
+ * Get browse categories
+ */
+export function useCategories(limit: number = 50) {
+  return useSpotifyQuery(() => spotifyApi.getCategories(limit));
+}
+
+/**
+ * Get category playlists
+ */
+export function useCategoryPlaylists(categoryId: string | null, limit: number = 50) {
+  return useSpotifyQuery(
+    () => spotifyApi.getCategoryPlaylists(categoryId!, limit),
+    { enabled: !!categoryId }
+  );
+}
+
+// ============================================================================
+// Debounced Search Hook
+// ============================================================================
+
+/**
+ * Debounced search hook - waits for user to stop typing
+ */
+export function useDebouncedSearch(debounceMs: number = 2000) {
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [results, setResults] = useState<spotifyApi.SpotifySearchResults | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debounce the query
+  useEffect(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    if (!query.trim()) {
+      setDebouncedQuery("");
+      setResults(null);
+      return;
+    }
+
+    timeoutRef.current = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, debounceMs);
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [query, debounceMs]);
+
+  // Execute search when debounced query changes
+  useEffect(() => {
+    if (!debouncedQuery.trim()) {
+      return;
+    }
+
+    const executeSearch = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const data = await spotifyApi.search(
+          debouncedQuery,
+          ["track", "artist", "album", "playlist"],
+          20
+        );
+        setResults(data);
+      } catch (e) {
+        setError(e instanceof Error ? e : new Error(String(e)));
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    executeSearch();
+  }, [debouncedQuery]);
+
+  const clear = useCallback(() => {
+    setQuery("");
+    setDebouncedQuery("");
+    setResults(null);
+    setError(null);
+  }, []);
+
+  return {
+    query,
+    setQuery,
+    results,
+    isLoading,
+    error,
+    clear,
+    isSearching: query !== debouncedQuery && query.trim().length > 0,
+  };
+}

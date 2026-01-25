@@ -55,6 +55,10 @@ export {
   useQueue,
   // Search
   useSearch,
+  useDebouncedSearch,
+  // Browse
+  useCategories,
+  useCategoryPlaylists,
   // Library
   useSavedTracks,
   useSaveTracks,

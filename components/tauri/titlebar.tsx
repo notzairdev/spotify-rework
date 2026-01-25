@@ -1,6 +1,7 @@
 "use client";
 
-import { Minus, X, ChevronDown, Home, Search, Library, Disc3 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Minus, X, ChevronDown, ChevronLeft, ChevronRight, Home, Search, Library } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -16,10 +17,19 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+// Paths that should not be in navigation history
+const EXCLUDED_PATHS = ["/", "/callback"];
+
 export function Titlebar() {
   const router = useRouter();
-  const location = usePathname();
+  const pathname = usePathname();
   const { isFullscreen } = useFullscreen();
+  const { isAuthenticated } = useAuth();
+
+  // Navigation history tracking
+  const [historyStack, setHistoryStack] = useState<string[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(-1);
+  const isNavigatingRef = useRef(false);
 
   const { user, logout } = useAuth();
   const {
@@ -28,8 +38,59 @@ export function Titlebar() {
     startDragging: drag,
   } = useWindow();
 
+  // Track navigation history
+  useEffect(() => {
+    // Skip excluded paths
+    if (EXCLUDED_PATHS.includes(pathname)) return;
+    
+    // Skip if we're navigating via back/forward buttons
+    if (isNavigatingRef.current) {
+      isNavigatingRef.current = false;
+      return;
+    }
+
+    // Check if we should add this path
+    setHistoryStack((prev) => {
+      // If navigating forward from middle of history, truncate
+      const truncated = prev.slice(0, currentIndex + 1);
+      
+      // Don't add duplicate consecutive entries
+      if (truncated[truncated.length - 1] === pathname) {
+        return prev;
+      }
+      
+      const newStack = [...truncated, pathname];
+      // Update index to point to the newly added entry
+      // Use setTimeout to batch with React's state updates
+      setTimeout(() => setCurrentIndex(newStack.length - 1), 0);
+      return newStack;
+    });
+  }, [pathname, currentIndex]);
+
+  const canGoBack = currentIndex > 0;
+  const canGoForward = currentIndex < historyStack.length - 1;
+
+  const handleGoBack = () => {
+    if (!canGoBack) return;
+    isNavigatingRef.current = true;
+    const newIndex = currentIndex - 1;
+    setCurrentIndex(newIndex);
+    router.push(historyStack[newIndex]);
+  };
+
+  const handleGoForward = () => {
+    if (!canGoForward) return;
+    isNavigatingRef.current = true;
+    const newIndex = currentIndex + 1;
+    setCurrentIndex(newIndex);
+    router.push(historyStack[newIndex]);
+  };
+
   const handleLogout = async () => {
     await logout();
+    // Clear history on logout
+    setHistoryStack([]);
+    setCurrentIndex(-1);
     router.push("/");
   };
 
@@ -64,12 +125,36 @@ export function Titlebar() {
 
         {/* Center: Navigation as minimal tabs */}
         <nav className={cn(
-          "flex-1 flex items-center justify-center transition-all duration-500",
+          "flex-1 flex items-center justify-center gap-4 transition-all duration-500",
           isFullscreen && "opacity-0 pointer-events-none"
         )}>
+          {/* Navigation history buttons */}
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent"
+              onClick={handleGoBack}
+              disabled={!canGoBack}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent"
+              onClick={handleGoForward}
+              disabled={!canGoForward}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+
           <div className="flex items-center bg-secondary/30 rounded-full p-1">
             {navItems.map((item) => {
-              const isActive = location === item.path;
+              const isActive = pathname === item.path;
               return (
                 <Link
                   key={item.path}
