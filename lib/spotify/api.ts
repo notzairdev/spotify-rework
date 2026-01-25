@@ -259,6 +259,23 @@ export async function getUser(userId: string): Promise<SpotifyUser> {
 }
 
 /**
+ * Get a user's public playlists
+ */
+export async function getUserPlaylists(
+  userId: string,
+  limit: number = 50,
+  offset: number = 0
+): Promise<SpotifyPaginatedResponse<SpotifyPlaylist>> {
+  const params = new URLSearchParams({
+    limit: limit.toString(),
+    offset: offset.toString(),
+  });
+  return spotifyFetch<SpotifyPaginatedResponse<SpotifyPlaylist>>(
+    `/users/${encodeURIComponent(userId)}/playlists?${params}`
+  );
+}
+
+/**
  * Get current user's top tracks
  */
 export async function getTopTracks(

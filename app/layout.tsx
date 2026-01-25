@@ -27,7 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={cn(inter.variable, fontMono.variable, inter.variable)} suppressHydrationWarning>
       <body
-        className={`antialiased`}
+        className={`antialiased select-none`}
       >
         <Providers>
           {children}

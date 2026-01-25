@@ -3,6 +3,7 @@
 import { use } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import {
   Play,
   Shuffle,
@@ -101,7 +102,7 @@ export default function PlaylistPage({ params }: PageProps) {
   }
 
   return (
-    <div className="flex flex-col pb-32 container mx-auto py-10">
+    <div className="flex flex-col pb-8 container mx-auto py-10">
       {/* Back button */}
       <div className="sticky top-0 z-10 flex items-center gap-2 bg-background/80 px-6 py-4 backdrop-blur-sm">
         <Button
@@ -148,9 +149,12 @@ export default function PlaylistPage({ params }: PageProps) {
             />
           )}
           <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">
+            <Link
+              href={`/profile/${playlist.owner.id}`}
+              className="font-medium text-foreground hover:underline"
+            >
               {playlist.owner.display_name}
-            </span>
+            </Link>
             <span>•</span>
             <span>{playlist.tracks.total} canciones</span>
             {totalHours > 0 && (

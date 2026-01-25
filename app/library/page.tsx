@@ -95,7 +95,7 @@ export default function LibraryPage() {
   };
 
   return (
-    <div className="p-6 pb-32 mt-10 container mx-auto">
+    <div className="p-6 pb-8 mt-10 container mx-auto">
       {/* Header */}
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-4xl font-bold">Biblioteca</h1>

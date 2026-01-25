@@ -131,6 +131,24 @@ export function useCurrentUser() {
 }
 
 /**
+ * Get a user's profile by ID
+ */
+export function useUser(userId: string | null) {
+  return useSpotifyQuery(() => spotifyApi.getUser(userId!), {
+    enabled: !!userId,
+  });
+}
+
+/**
+ * Get a user's public playlists
+ */
+export function useUserPlaylists(userId: string | null, limit: number = 50) {
+  return useSpotifyQuery(() => spotifyApi.getUserPlaylists(userId!, limit), {
+    enabled: !!userId,
+  });
+}
+
+/**
  * Get current user's top tracks
  */
 export function useTopTracks(

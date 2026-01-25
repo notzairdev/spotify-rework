@@ -15,7 +15,7 @@ interface AppGateProps {
 const HIDE_SEARCH_PATHS = ["/", "/callback"];
 
 // Pages that require authentication (will redirect to /home if not in list)
-const AUTHENTICATED_PATHS = ["/home", "/lyrics", "/search", "/library", "/profile", "/settings"];
+const AUTHENTICATED_PATHS = ["/home", "/lyrics", "/search", "/library", "/profile", "/settings", "/playlist", "/album", "/artist"];
 
 /**
  * AppGate handles the initial auth verification flow:
@@ -81,14 +81,16 @@ export function AppGate({ children }: AppGateProps) {
   const showPlayerBar = isAuthenticated && !HIDE_SEARCH_PATHS.includes(pathname) && pathname !== "/lyrics";
 
   return (
-    <>
+    <div className="flex h-screen flex-col overflow-hidden">
       <Titlebar hideSearch={hideSearch} />
-      {children}
+      <main className="flex-1 overflow-y-auto scrollbar-hide">
+        {children}
+      </main>
       <div
-        className={`transition-opacity duration-300 ${showPlayerBar ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        className={`shrink-0 transition-opacity duration-300 ${showPlayerBar ? "opacity-100" : "opacity-0 pointer-events-none"}`}
       >
         <PlayerBar />
       </div>
-    </>
+    </div>
   );
 }
