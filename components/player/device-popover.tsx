@@ -92,7 +92,7 @@ export function DevicePopover({ className, triggerClassName }: DevicePopoverProp
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
           ) : devices.length === 0 ? (
-            <div className="p-6 text-center text-muted-foreground">
+            <div className="px-6 text-center text-muted-foreground">
               <MonitorSpeaker className="w-8 h-8 mx-auto mb-2 opacity-50" />
               <p className="text-sm">No devices found</p>
               <p className="text-xs mt-1 opacity-70">

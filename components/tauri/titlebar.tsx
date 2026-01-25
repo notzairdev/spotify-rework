@@ -199,11 +199,11 @@ export function Titlebar() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44 glass border-white/10" onMouseDown={(e) => e.stopPropagation()}>
-              <div className="px-3 py-2">
+              <div className="px-3 py-2 flex gap-2">
                 <p className="text-sm font-medium">
                   {user?.display_name || "Usuario"}
                 </p>
-                <p className="text-xs text-dim">Premium</p>
+                <p className="text-xs text-dim inline-block bg-primary/10 rounded-full uppercase tracking-wider text-primary px-2 py-0.5">Premium</p>
               </div>
               <DropdownMenuSeparator className="bg-white/5" />
               <DropdownMenuItem asChild>

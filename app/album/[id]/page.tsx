@@ -110,9 +110,9 @@ export default function AlbumPage({ params }: PageProps) {
   const releaseYear = album.release_date?.split("-")[0];
 
   return (
-    <div className="flex flex-col container mx-auto pb-26">
+    <div className="flex flex-col container mx-auto pb-36">
       {/* Hero Section */}
-      <div className="relative overflow-hidden pt-26">
+      <div className="relative overflow-hidden pt-36">
         {/* Background glow */}
         {coverColor && (
           <div
@@ -273,7 +273,7 @@ export default function AlbumPage({ params }: PageProps) {
       )}
 
       {/* Footer Credits */}
-      <div className="mt-12 px-6 text-center">
+      <div className="mt-12 px-6">
         <p className="text-xs text-muted-foreground uppercase tracking-widest">
           ℗ {releaseYear} {album.artists?.[0]?.name}
         </p>
