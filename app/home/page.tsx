@@ -173,7 +173,18 @@ export default function HomePage() {
                 </div>
                 <h3 className="font-medium text-foreground truncate text-sm">{item.track.name}</h3>
                 <p className="text-xs text-muted-foreground truncate">
-                  {item.track.artists.map(a => a.name).join(", ")}
+                  {item.track.artists.map((a, i) => (
+                    <span key={a.id}>
+                      <Link
+                        href={`/artist/${a.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:text-foreground hover:underline transition-colors"
+                      >
+                        {a.name}
+                      </Link>
+                      {i < item.track.artists.length - 1 && ", "}
+                    </span>
+                  ))}
                 </p>
               </div>
             ))}
@@ -220,7 +231,18 @@ export default function HomePage() {
                 </div>
                 <h3 className="font-semibold text-sm text-foreground truncate">{track.name}</h3>
                 <p className="text-[13px] text-muted-foreground truncate">
-                  {track.artists.map(a => a.name).join(", ")}
+                  {track.artists.map((a, i) => (
+                    <span key={a.id}>
+                      <Link
+                        href={`/artist/${a.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:text-foreground hover:underline transition-colors"
+                      >
+                        {a.name}
+                      </Link>
+                      {i < track.artists.length - 1 && ", "}
+                    </span>
+                  ))}
                 </p>
               </div>
             ))
@@ -245,9 +267,9 @@ export default function HomePage() {
             ))
           ) : (
             topArtists?.items?.map((artist, i) => (
-              <div
+              <Link
                 key={artist.id}
-                onClick={() => handlePlayArtist(artist.external_urls.spotify.replace('https://open.spotify.com/', 'spotify:').replace('/', ':'))}
+                href={`/artist/${artist.id}`}
                 className="group shrink-0 text-center cursor-pointer animate-slide-up"
                 style={{ animationDelay: `${i * 50}ms` }}
               >
@@ -264,14 +286,14 @@ export default function HomePage() {
                     </div>
                   )}
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <Button size="icon" className="rounded-full">
-                      <Play className="w-5 h-5" fill="currentColor" />
-                    </Button>
+                    <div className="rounded-full bg-primary p-3">
+                      <Play className="w-5 h-5 text-primary-foreground" fill="currentColor" />
+                    </div>
                   </div>
                 </div>
                 <h3 className="font-semibold text-foreground">{artist.name}</h3>
                 <p className="text-xs text-muted-foreground">Artista</p>
-              </div>
+              </Link>
             ))
           )}
         </div>

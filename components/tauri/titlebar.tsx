@@ -55,15 +55,11 @@ export function Titlebar() {
           isFullscreen && "opacity-0 pointer-events-none"
         )}>
           <div className="flex items-center gap-2">
-            <img src="/svgl/spotify.svg" alt="Spotify Logo" className="opacity-50 w-4 h-4" />
-            <span className="opacity-50 font-mono text-sm tracking-tight">
-              BETA
-            </span>
+            <img src="/svgl/spotify.svg" alt="Spotify Logo" className="opacity-50 w-auto h-5" />
+            {/* <span className="opacity-50 font-mono text-sm tracking-tight">
+              DEV
+            </span> */}
           </div>
-          <div className="h-4 w-px bg-border" />
-          <span className="text-[10px] font-mono text-dim uppercase tracking-widest">
-            v0.1
-          </span>
         </div>
 
         {/* Center: Navigation as minimal tabs */}

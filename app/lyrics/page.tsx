@@ -205,7 +205,7 @@ export default function LyricsPage() {
     <div
       className={cn(
         "relative h-[calc(100vh)] flex flex-col container mx-auto pt-20",
-        isFullscreen && "fixed inset-0 z-[60] bg-background h-screen pt-6"
+        isFullscreen && "fixed inset-0 z-60 bg-background h-screen pt-6"
       )}
       onClick={handleUserInteraction}
       onScroll={handleUserInteraction}
@@ -252,13 +252,13 @@ export default function LyricsPage() {
           {/* Large blurred album art as ambient background */}
           {albumArt && (
             <div 
-              className="absolute inset-0 flex items-center justify-center animate-slow-drift"
-              style={{ opacity: outroState.progress * 0.4 }}
+              className="absolute inset-0 flex items-center justify-center animate-slow-drift blur-3xl"
+              style={{ opacity: outroState.progress * 0.2 }}
             >
               <img
                 src={albumArt}
                 alt=""
-                className="w-full h-full object-cover blur-3xl scale-150 animate-ambient-shift"
+                className="w-full h-full object-cover scale-150 animate-ambient-shift"
               />
             </div>
           )}

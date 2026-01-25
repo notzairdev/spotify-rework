@@ -61,7 +61,7 @@ export default function UserProfilePage({ params }: PageProps) {
   const publicPlaylists = playlists?.items ?? [];
 
   return (
-    <div className="pt-10 pb-8 container mx-auto">
+    <div className="py-26 container mx-auto">
       {/* Back button */}
       <div className="mb-6">
         <Button
@@ -76,11 +76,11 @@ export default function UserProfilePage({ params }: PageProps) {
 
       {/* Header */}
       <div className="mb-12 flex flex-col gap-8 lg:flex-row">
-        <div className="relative size-48 shrink-0 overflow-hidden rounded-full bg-linear-to-br from-primary/30 to-accent/30 shadow-2xl">
+        <div className="relative size-64 shrink-0 overflow-hidden rounded-2xl bg-linear-to-br from-primary/30 to-accent/30 shadow-2xl">
           {userImage ? (
             <Image
               src={userImage}
-              alt={user.display_name ?? "Profile"}
+              alt={user?.display_name ?? "Profile"}
               fill
               className="object-cover"
             />
@@ -91,17 +91,25 @@ export default function UserProfilePage({ params }: PageProps) {
           )}
         </div>
 
-        <div className="flex flex-col justify-end">
-          <p className="mb-3 text-xs uppercase tracking-widest text-primary">
-            Perfil
-          </p>
-          <h1 className="mb-4 text-5xl font-bold leading-none lg:text-7xl">
-            {user.display_name ?? "Usuario"}
-          </h1>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <span>{publicPlaylists.length} playlists públicas</span>
-            <span>•</span>
-            <span>{followersCount} seguidores</span>
+        <div className="flex flex-col justify-end w-full">
+          <div className="flex flex-1 w-full">
+            <div className="flex flex-col flex-1">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground bg-card inline-block px-2 py-1 rounded-sm w-fit mb-3">
+                Public Profile
+              </span>
+              <h1 className="mb-4 text-5xl font-bold leading-none lg:text-7xl">
+                {user?.display_name ?? "Usuario"}
+              </h1>
+            </div>
+            <div>
+              <Button className="p-5 rounded-2xl text-md" variant="outline">
+                Follow
+              </Button>
+            </div>
+          </div>
+          <div className="flex items-center gap-10 text-xs text-muted-foreground">
+            <span>{publicPlaylists.length} public playlists</span>
+            <span>{followersCount} followers</span>
           </div>
         </div>
       </div>
@@ -117,7 +125,9 @@ export default function UserProfilePage({ params }: PageProps) {
 
       {/* Public Playlists */}
       <section>
-        <h2 className="mb-6 text-2xl font-bold">Playlists públicas</h2>
+        <h2 className="mb-6 text-2xl font-bold">
+          Collection of {user?.display_name ?? "the user"}
+        </h2>
 
         {playlistsLoading ? (
           <div className="flex items-center justify-center py-12">
@@ -154,7 +164,9 @@ export default function UserProfilePage({ params }: PageProps) {
                     </Button>
                   </div>
                 </div>
-                <h3 className="mt-2 text-sm truncate font-medium">{playlist.name}</h3>
+                <h3 className="mt-2 text-sm truncate font-medium">
+                  {playlist.name}
+                </h3>
                 <p className="text-[13px] text-muted-foreground">
                   {playlist.tracks.total} canciones
                 </p>
