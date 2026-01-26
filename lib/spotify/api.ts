@@ -1032,7 +1032,8 @@ export async function getNewReleases(
 }
 
 /**
- * Get featured playlists (uses toplists category as fallback since /browse/featured-playlists was deprecated)
+ * Get featured playlists
+ * Uses toplists category as primary, falls back to "pop" category if not available
  */
 export async function getFeaturedPlaylists(
   limit: number = 20,
@@ -1040,19 +1041,131 @@ export async function getFeaturedPlaylists(
   locale?: string,
   country?: string
 ): Promise<{ message: string; playlists: SpotifyPaginatedResponse<SpotifyPlaylist> }> {
-  // Use toplists category which contains popular/trending playlists
   const params = new URLSearchParams({
     limit: limit.toString(),
     offset: offset.toString(),
   });
   if (country) params.set("country", country);
   
-  const result = await spotifyFetch<{ playlists: SpotifyPaginatedResponse<SpotifyPlaylist> }>(
-    `/browse/categories/toplists/playlists?${params}`
+  // Try toplists category first (popular/trending playlists)
+  try {
+    const result = await spotifyFetch<{ playlists: SpotifyPaginatedResponse<SpotifyPlaylist> }>(
+      `/browse/categories/toplists/playlists?${params}`
+    );
+    return {
+      message: "Popular Playlists",
+      playlists: result.playlists,
+    };
+  } catch {
+    // Fallback to "pop" category if toplists doesn't exist in this region
+    try {
+      const result = await spotifyFetch<{ playlists: SpotifyPaginatedResponse<SpotifyPlaylist> }>(
+        `/browse/categories/pop/playlists?${params}`
+      );
+      return {
+        message: "Pop Playlists",
+        playlists: result.playlists,
+      };
+    } catch {
+      // Final fallback - return empty result
+      return {
+        message: "Featured Playlists",
+        playlists: {
+          items: [],
+          total: 0,
+          limit: limit,
+          offset: offset,
+          next: null,
+          previous: null,
+          href: "",
+        },
+      };
+    }
+  }
+}
+
+// ============================================================================
+// Playlist Follow/Unfollow
+// ============================================================================
+
+/**
+ * Follow (save) a playlist
+ */
+export async function followPlaylist(playlistId: string): Promise<void> {
+  await spotifyFetch(`/playlists/${encodeURIComponent(playlistId)}/followers`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ public: false }),
+  });
+}
+
+/**
+ * Unfollow (remove) a playlist
+ */
+export async function unfollowPlaylist(playlistId: string): Promise<void> {
+  await spotifyFetch(`/playlists/${encodeURIComponent(playlistId)}/followers`, {
+    method: "DELETE",
+  });
+}
+
+/**
+ * Check if user follows a playlist
+ */
+export async function checkUserFollowsPlaylist(
+  playlistId: string,
+  userIds: string[]
+): Promise<boolean[]> {
+  const params = new URLSearchParams({
+    ids: userIds.join(","),
+  });
+  return spotifyFetch<boolean[]>(
+    `/playlists/${encodeURIComponent(playlistId)}/followers/contains?${params}`
   );
-  
-  return {
-    message: "Popular Playlists",
-    playlists: result.playlists,
-  };
+}
+
+// ============================================================================
+// Album Save/Unsave
+// ============================================================================
+
+/**
+ * Save albums to user's library
+ */
+export async function saveAlbums(ids: string[]): Promise<void> {
+  await spotifyFetch("/me/albums", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
+}
+
+/**
+ * Remove albums from user's library
+ */
+export async function removeAlbums(ids: string[]): Promise<void> {
+  await spotifyFetch("/me/albums", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
+}
+
+/**
+ * Check if albums are saved
+ */
+export async function checkSavedAlbums(ids: string[]): Promise<boolean[]> {
+  const params = new URLSearchParams({ ids: ids.join(",") });
+  return spotifyFetch<boolean[]>(`/me/albums/contains?${params}`);
+}
+
+// ============================================================================
+// Playback Shuffle
+// ============================================================================
+
+/**
+ * Set shuffle state
+ */
+export async function setShuffle(state: boolean, deviceId?: string): Promise<void> {
+  const params = new URLSearchParams({ state: state.toString() });
+  if (deviceId) params.set("device_id", deviceId);
+  await spotifyFetch(`/me/player/shuffle?${params}`, { method: "PUT" });
 }

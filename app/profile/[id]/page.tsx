@@ -47,9 +47,9 @@ export default function UserProfilePage({ params }: PageProps) {
   if (!user) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4">
-        <p className="text-muted-foreground">Usuario no encontrado</p>
+        <p className="text-muted-foreground">User not found</p>
         <Button variant="outline" onClick={() => router.push("/home")}>
-          Volver al inicio
+          Back to home
         </Button>
       </div>
     );
@@ -62,7 +62,7 @@ export default function UserProfilePage({ params }: PageProps) {
 
   return (
     <div className="py-26 container mx-auto">
-      {/* Header */}}
+      {/* Header */}
       <div className="mb-12 flex flex-col gap-8 lg:flex-row">
         <div className="relative size-64 shrink-0 overflow-hidden rounded-2xl bg-linear-to-br from-primary/30 to-accent/30 shadow-2xl">
           {userImage ? (

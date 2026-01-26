@@ -84,9 +84,16 @@ export default function LyricsPage() {
   const albumArt = track?.album.images[0]?.url;
   const trackId = track?.id;
 
-  // Fetch queue data for next track preview in outro
-  const { data: queueData } = useQueue({ enabled: !!track });
+  // Fetch queue data for next track preview in outro - refetch when track changes
+  const { data: queueData, refetch: refetchQueue } = useQueue({ enabled: !!track });
   const nextTrack = queueData?.queue?.[0];
+
+  // Refetch queue when track changes to keep "Up Next" current
+  useEffect(() => {
+    if (trackId && prevTrackIdRef.current && trackId !== prevTrackIdRef.current) {
+      refetchQueue();
+    }
+  }, [trackId, refetchQueue]);
 
   // Reset fullscreen when leaving the page
   useEffect(() => {
@@ -236,114 +243,89 @@ export default function LyricsPage() {
         />
       )}
       
-      {/* Outro visual overlay - Ambient fade with next track preview */}
+      {/* Outro visual overlay - Clean minimal design */}
       {showOutroVisuals && (
         <div 
           className={cn(
-            "fixed inset-0 z-30 pointer-events-none overflow-hidden transition-all duration-1000",
+            "fixed inset-0 z-30 overflow-hidden transition-all duration-700",
             outroFadeOut && "opacity-0"
           )}
+          onClick={handleUserInteraction}
+          onMouseMove={handleUserInteraction}
         >
-          {/* Gradient backdrop that fades in */}
+          {/* Soft gradient backdrop */}
           <div 
-            className="absolute inset-0 transition-opacity duration-2000"
+            className="absolute inset-0 pointer-events-none"
             style={{ 
-              background: 'linear-gradient(to bottom, transparent 0%, hsl(var(--background)) 40%)',
-              opacity: outroState.progress 
+              background: ambientColor
+                ? `radial-gradient(ellipse 80% 60% at center 40%, hsl(${hslToString(ambientColor)} / ${0.15 + outroState.progress * 0.15}), transparent 70%)`
+                : `radial-gradient(ellipse 80% 60% at center 40%, hsl(var(--primary) / ${0.1 + outroState.progress * 0.1}), transparent 70%)`,
             }}
           />
 
-          {/* Large blurred album art as ambient background */}
-          {albumArt && (
+          {/* Floating particles/dots that pulse */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            {/* Center pulsing ring */}
             <div 
-              className="absolute inset-0 flex items-center justify-center animate-slow-drift blur-3xl"
-              style={{ opacity: outroState.progress * 0.15 }}
-            >
-              <img
-                src={albumArt}
-                alt=""
-                className="w-full h-full object-cover scale-150"
-              />
-            </div>
-          )}
-
-          {/* Center content - Current and Next track crossfade */}
-          <div 
-            className="absolute inset-0 flex flex-col items-center justify-center gap-8"
-            style={{ opacity: outroState.progress }}
-          >
-            {/* Current track - fading out */}
-            <div 
-              className="flex flex-col items-center gap-4 transition-all duration-1000"
-              style={{
-                opacity: Math.max(0, 1 - outroState.progress * 1.5),
-                transform: `scale(${1 - outroState.progress * 0.2}) translateY(${-outroState.progress * 20}px)`,
+              className="absolute w-64 h-64 rounded-full border border-foreground/5 animate-ping"
+              style={{ 
+                opacity: outroState.progress * 0.3,
+                animationDuration: '3s'
               }}
-            >
-              {albumArt && (
-                <img
-                  src={albumArt}
-                  alt=""
-                  className="w-28 h-28 rounded-2xl shadow-2xl"
-                  style={{
-                    boxShadow: ambientColor 
-                      ? `0 20px 50px -10px hsl(${hslToString(ambientColor)} / 0.4)` 
-                      : '0 20px 50px -10px rgba(0,0,0,0.3)',
-                  }}
-                />
-              )}
-              <div className="text-center">
-                <p className="text-lg font-medium text-foreground/70">{track?.name}</p>
-                <p className="text-sm text-muted-foreground">{track?.artists.join(", ")}</p>
-              </div>
+            />
+            <div 
+              className="absolute w-48 h-48 rounded-full border border-foreground/5 animate-ping"
+              style={{ 
+                opacity: outroState.progress * 0.4,
+                animationDuration: '2.5s',
+                animationDelay: '0.5s'
+              }}
+            />
+            <div 
+              className="absolute w-32 h-32 rounded-full border border-foreground/5 animate-ping"
+              style={{ 
+                opacity: outroState.progress * 0.5,
+                animationDuration: '2s',
+                animationDelay: '1s'
+              }}
+            />
+          </div>
+
+          {/* Bottom content - Next track teaser */}
+          <div 
+            className="absolute bottom-32 left-0 right-0 px-8 pointer-events-none"
+            style={{ 
+              opacity: Math.min(1, outroState.progress * 1.5),
+              transform: `translateY(${(1 - outroState.progress) * 30}px)`,
+            }}
+          >
+            <div className="max-w-md mx-auto">
+              {nextTrack ? (
+                <div className="flex items-center gap-5 p-4 rounded-2xl bg-card/30 backdrop-blur-xl border border-white/5">
+                  {nextTrack.album.images[0]?.url && (
+                    <img
+                      src={nextTrack.album.images[0].url}
+                      alt=""
+                      className="w-16 h-16 rounded-xl shadow-lg"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground/70 mb-1 flex items-center gap-1.5">
+                      <SkipForward className="w-3 h-3" />
+                      Next
+                    </p>
+                    <p className="font-semibold text-foreground truncate">{nextTrack.name}</p>
+                    <p className="text-sm text-muted-foreground truncate">
+                      {nextTrack.artists.map(a => a.name).join(", ")}
+                    </p>
+                  </div>
+                </div>
+              ) : outroState.progress > 0.5 ? (
+                <div className="text-center text-muted-foreground/60">
+                  <p className="text-sm">End of queue</p>
+                </div>
+              ) : null}
             </div>
-
-            {/* Next track preview - fading in */}
-            {nextTrack && (
-              <div 
-                className="flex flex-col items-center gap-4 transition-all duration-1000 absolute"
-                style={{
-                  opacity: Math.min(1, outroState.progress * 2 - 0.5),
-                  transform: `scale(${0.8 + outroState.progress * 0.2}) translateY(${(1 - outroState.progress) * 30}px)`,
-                }}
-              >
-                <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wider mb-2">
-                  <SkipForward className="w-3 h-3" />
-                  <span>Up Next</span>
-                </div>
-                {nextTrack.album.images[0]?.url && (
-                  <img
-                    src={nextTrack.album.images[0].url}
-                    alt=""
-                    className="w-36 h-36 rounded-2xl shadow-2xl transition-all duration-500"
-                    style={{
-                      boxShadow: '0 25px 60px -15px rgba(0,0,0,0.5)',
-                    }}
-                  />
-                )}
-                <div className="text-center">
-                  <p className="text-xl font-bold text-foreground">{nextTrack.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {nextTrack.artists.map(a => a.name).join(", ")}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* No next track - show completion message */}
-            {!nextTrack && outroState.progress > 0.5 && (
-              <div 
-                className="flex flex-col items-center gap-3 absolute"
-                style={{
-                  opacity: Math.min(1, (outroState.progress - 0.5) * 2),
-                }}
-              >
-                <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center">
-                  <Music className="w-8 h-8 text-primary" />
-                </div>
-                <p className="text-lg font-medium text-muted-foreground">End of Queue</p>
-              </div>
-            )}
           </div>
         </div>
       )}

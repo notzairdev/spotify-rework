@@ -11,13 +11,27 @@ import {
   ArrowLeft,
   Clock,
   Disc3,
+  Share2,
+  ExternalLink,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { TrackContextMenu } from "@/components/context";
 import { useAlbum, useAlbumTracks } from "@/lib/spotify/hooks";
-import { startPlayback } from "@/lib/spotify/api";
+import {
+  startPlayback,
+  saveAlbums,
+  removeAlbums,
+  checkSavedAlbums,
+} from "@/lib/spotify/api";
 import {
   extractDominantColor,
   hslToString,
@@ -44,6 +58,9 @@ export default function AlbumPage({ params }: PageProps) {
 
   const [coverColor, setCoverColor] = useState<HSL | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [saveChecked, setSaveChecked] = useState(false);
 
   // Extract dominant color from cover image
   useEffect(() => {
@@ -57,6 +74,16 @@ export default function AlbumPage({ params }: PageProps) {
       setCoverColor(color);
     });
   }, [album?.images]);
+
+  // Check if album is saved in library
+  useEffect(() => {
+    if (saveChecked || !id) return;
+    setSaveChecked(true);
+    
+    checkSavedAlbums([id]).then(([saved]) => {
+      setIsSaved(saved);
+    }).catch(() => {});
+  }, [id, saveChecked]);
 
   const tracks = tracksData?.items ?? [];
   const totalDuration = tracks.reduce(
@@ -85,6 +112,35 @@ export default function AlbumPage({ params }: PageProps) {
       setIsPlaying(true);
     } catch (e) {
       console.error("Failed to play track:", e);
+    }
+  };
+
+  const handleToggleSave = async () => {
+    if (saveLoading || !id) return;
+    setSaveLoading(true);
+    
+    try {
+      if (isSaved) {
+        await removeAlbums([id]);
+        setIsSaved(false);
+        toast.success("Removed from your library");
+      } else {
+        await saveAlbums([id]);
+        setIsSaved(true);
+        toast.success("Added to your library");
+      }
+    } catch (e) {
+      toast.error("Failed to update");
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  const handleShare = async () => {
+    const url = album?.external_urls?.spotify;
+    if (url) {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied to clipboard");
     }
   };
 
@@ -198,8 +254,18 @@ export default function AlbumPage({ params }: PageProps) {
 
             {/* Action buttons - Centered */}
             <div className="mt-4 flex items-center gap-4">
-              <Button size="icon" variant="outline" className="size-12 rounded-full border-muted-foreground/30">
-                <Heart className="size-5" />
+              <Button
+                size="icon"
+                variant="outline"
+                onClick={handleToggleSave}
+                disabled={saveLoading}
+                className={cn(
+                  "size-12 rounded-full border-muted-foreground/30",
+                  isSaved && "text-primary border-primary"
+                )}
+                title={isSaved ? "Remove from library" : "Add to library"}
+              >
+                <Heart className={cn("size-5", isSaved && "fill-current")} />
               </Button>
               <Button
                 size="lg"
@@ -208,9 +274,31 @@ export default function AlbumPage({ params }: PageProps) {
               >
                 Play Album
               </Button>
-              <Button size="icon" variant="outline" className="size-12 rounded-full border-muted-foreground/30">
-                <MoreHorizontal className="size-5" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="icon" variant="outline" className="size-12 rounded-full border-muted-foreground/30">
+                    <MoreHorizontal className="size-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="center">
+                  <DropdownMenuItem onClick={handleShare}>
+                    <Share2 className="mr-2 size-4" />
+                    Copy Link
+                  </DropdownMenuItem>
+                  {album?.external_urls?.spotify && (
+                    <DropdownMenuItem asChild>
+                      <a
+                        href={album.external_urls.spotify}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink className="mr-2 size-4" />
+                        Open in Spotify
+                      </a>
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>

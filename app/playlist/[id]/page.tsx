@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { use, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -12,14 +12,32 @@ import {
   Heart,
   ArrowLeft,
   ListMusic,
+  Share2,
+  ExternalLink,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { usePlaylist, usePlaylistTracks } from "@/lib/spotify/hooks";
-import { startPlayback } from "@/lib/spotify/api";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { usePlaylist, usePlaylistTracks, useCurrentUser } from "@/lib/spotify/hooks";
+import {
+  startPlayback,
+  setShuffle,
+  followPlaylist,
+  unfollowPlaylist,
+  checkUserFollowsPlaylist,
+  getCurrentUser,
+} from "@/lib/spotify/api";
 import { Spinner } from "@/components/ui/spinner";
 import { TrackContextMenu } from "@/components/context";
 import { extractDominantColor, hslToString, type HSL } from "@/lib/utils/color-extractor";
+import { cn } from "@/lib/utils";
 
 function formatDuration(ms: number): string {
   const minutes = Math.floor(ms / 60000);
@@ -45,7 +63,12 @@ export default function PlaylistPage({ params }: PageProps) {
 
   const { data: playlist, isLoading: playlistLoading } = usePlaylist(id);
   const { data: tracksData, isLoading: tracksLoading } = usePlaylistTracks(id);
+  const { data: currentUser } = useCurrentUser();
+  
   const [coverColor, setCoverColor] = useState<HSL | null>(null);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [followChecked, setFollowChecked] = useState(false);
 
   // Extract dominant color from cover image
   useEffect(() => {
@@ -59,6 +82,16 @@ export default function PlaylistPage({ params }: PageProps) {
       setCoverColor(color);
     });
   }, [playlist?.images]);
+
+  // Check if user follows this playlist
+  useEffect(() => {
+    if (followChecked || !currentUser?.id || !id) return;
+    setFollowChecked(true);
+    
+    checkUserFollowsPlaylist(id, [currentUser.id]).then(([follows]) => {
+      setIsFollowing(follows);
+    }).catch(() => {});
+  }, [currentUser?.id, id, followChecked]);
 
   const tracks = tracksData?.items ?? [];
   const totalDuration = tracks.reduce(
@@ -92,10 +125,42 @@ export default function PlaylistPage({ params }: PageProps) {
   const handleShuffle = async () => {
     if (!playlist) return;
     try {
-      // Start playback with shuffle enabled
+      // Enable shuffle first, then start playback
+      await setShuffle(true);
       await startPlayback({ contextUri: playlist.uri });
+      toast.success("Shuffle play started");
     } catch (e) {
       console.error("Failed to shuffle playlist:", e);
+      toast.error("Failed to start shuffle play");
+    }
+  };
+
+  const handleToggleFollow = async () => {
+    if (followLoading || !id) return;
+    setFollowLoading(true);
+    
+    try {
+      if (isFollowing) {
+        await unfollowPlaylist(id);
+        setIsFollowing(false);
+        toast.success("Removed from your library");
+      } else {
+        await followPlaylist(id);
+        setIsFollowing(true);
+        toast.success("Added to your library");
+      }
+    } catch (e) {
+      toast.error("Failed to update");
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
+  const handleShare = async () => {
+    const url = playlist?.external_urls?.spotify;
+    if (url) {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied to clipboard");
     }
   };
 
@@ -211,15 +276,45 @@ export default function PlaylistPage({ params }: PageProps) {
           variant="ghost"
           onClick={handleShuffle}
           className="size-12"
+          title="Shuffle play"
         >
           <Shuffle className="size-5" />
         </Button>
-        <Button size="icon" variant="ghost" className="size-12">
-          <Heart className="size-5" />
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={handleToggleFollow}
+          disabled={followLoading}
+          className={cn("size-12", isFollowing && "text-primary")}
+          title={isFollowing ? "Remove from library" : "Add to library"}
+        >
+          <Heart className={cn("size-5", isFollowing && "fill-current")} />
         </Button>
-        <Button size="icon" variant="ghost" className="size-12">
-          <MoreHorizontal className="size-5" />
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="icon" variant="ghost" className="size-12">
+              <MoreHorizontal className="size-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onClick={handleShare}>
+              <Share2 className="mr-2 size-4" />
+              Copy Link
+            </DropdownMenuItem>
+            {playlist?.external_urls?.spotify && (
+              <DropdownMenuItem asChild>
+                <a
+                  href={playlist.external_urls.spotify}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink className="mr-2 size-4" />
+                  Open in Spotify
+                </a>
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="px-6 py-2 text-md font-medium text-muted-foreground">
