@@ -187,7 +187,7 @@ export function Titlebar() {
                 )}
                 onMouseDown={(e) => e.stopPropagation()}
               >
-                <div className="w-6 h-6 rounded-full bg-linear-to-br from-primary/60 to-accent/60 flex items-center justify-center">
+                <div className="w-6 h-6 rounded-full border flex items-center justify-center">
                   <span className="text-[10px] font-bold text-foreground">
                     {user?.display_name?.charAt(0) || "U"}
                   </span>

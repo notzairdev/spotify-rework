@@ -11,11 +11,8 @@ interface AppGateProps {
   children: ReactNode;
 }
 
-// Pages where search bar should be hidden
-const HIDE_SEARCH_PATHS = ["/", "/callback"];
-
-// Pages that require authentication (will redirect to /home if not in list)
-const AUTHENTICATED_PATHS = ["/home", "/lyrics", "/search", "/library", "/profile", "/settings", "/playlist", "/album", "/artist"];
+// Pages where player bar should be hidden
+const HIDE_PLAYER_PATHS = ["/", "/callback"];
 
 /**
  * AppGate handles the initial auth verification flow:
@@ -30,9 +27,6 @@ export function AppGate({ children }: AppGateProps) {
   const pathname = usePathname();
   const { isLoading, isAuthenticated, session } = useAuth();
   const [isReady, setIsReady] = useState(false);
-  
-  const hideSearch = HIDE_SEARCH_PATHS.includes(pathname);
-  const isAuthenticatedPath = AUTHENTICATED_PATHS.some(p => pathname.startsWith(p));
 
   useEffect(() => {
     // Skip gate logic for callback page
@@ -78,11 +72,11 @@ export function AppGate({ children }: AppGateProps) {
     return null;
   }
 
-  const showPlayerBar = isAuthenticated && !HIDE_SEARCH_PATHS.includes(pathname) && pathname !== "/lyrics";
+  const showPlayerBar = isAuthenticated && !HIDE_PLAYER_PATHS.includes(pathname) && pathname !== "/lyrics";
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
-      <Titlebar hideSearch={hideSearch} />
+      <Titlebar />
       <main className="flex-1 overflow-y-auto scrollbar-hide">
         {children}
       </main>
