@@ -87,7 +87,7 @@ spotify-rework/
 ### 1. Clone and Install
 
 ```bash
-git clone https://github.com/yourusername/spotify-rework.git
+git clone https://github.com/notzairdev/spotify-rework.git
 cd spotify-rework
 npm install
 ```
