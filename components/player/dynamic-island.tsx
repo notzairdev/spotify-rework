@@ -7,8 +7,11 @@ import {
   SkipBack,
   SkipForward,
   Heart,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { useSpotifyPlayer, useTrackLike } from "@/lib/spotify";
+import { useFullscreen } from "@/lib/fullscreen";
 import { cn } from "@/lib/utils";
 import { extractDominantColor, hslToString, type HSL } from "@/lib/utils/color-extractor";
 import { QueuePopover } from "./queue-popover";
@@ -16,6 +19,7 @@ import { QueuePopover } from "./queue-popover";
 /**
  * Compact Dynamic Island for lyrics view
  * Morphs from the main player bar with a liquid glass effect
+ * Includes Like + Fullscreen controls on hover
  */
 export function DynamicIsland() {
   const [isHovered, setIsHovered] = useState(false);
@@ -23,6 +27,7 @@ export function DynamicIsland() {
   const [isVisible, setIsVisible] = useState(false);
   const { state, togglePlay, nextTrack, previousTrack } = useSpotifyPlayer();
   const { isLiked, toggleLike } = useTrackLike();
+  const { isFullscreen, toggleFullscreen } = useFullscreen();
 
   const track = state?.track;
   const albumArt = track?.album.images[0]?.url;
@@ -186,21 +191,46 @@ export function DynamicIsland() {
           </div>
 
           {/* Like button - only on hover */}
-          <button
-            onClick={toggleLike}
+          <div
             className={cn(
-              "transition-all duration-500 p-1.5",
-              isHovered ? "opacity-100 w-7" : "opacity-0 w-0",
-              isLiked
-                ? "text-primary"
-                : "text-white/60 hover:text-white"
+              "transition-all duration-500 overflow-hidden",
+              isHovered ? "w-7 opacity-100" : "w-0 opacity-0"
             )}
           >
-            <Heart
-              className="w-3.5 h-3.5"
-              fill={isLiked ? "currentColor" : "none"}
-            />
-          </button>
+            <button
+              onClick={toggleLike}
+              className={cn(
+                "p-1.5",
+                isLiked
+                  ? "text-primary"
+                  : "text-white/60 hover:text-white"
+              )}
+            >
+              <Heart
+                className="w-3.5 h-3.5"
+                fill={isLiked ? "currentColor" : "none"}
+              />
+            </button>
+          </div>
+
+          {/* Fullscreen toggle - only on hover */}
+          <div
+            className={cn(
+              "transition-all duration-500 overflow-hidden",
+              isHovered ? "w-7 opacity-100" : "w-0 opacity-0"
+            )}
+          >
+            <button
+              onClick={toggleFullscreen}
+              className="p-1.5 text-white/60 hover:text-white"
+            >
+              {isFullscreen ? (
+                <Minimize2 className="w-3.5 h-3.5" />
+              ) : (
+                <Maximize2 className="w-3.5 h-3.5" />
+              )}
+            </button>
+          </div>
 
           {/* Queue - only on hover */}
           <div
