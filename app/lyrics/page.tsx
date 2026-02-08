@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Music, SkipForward } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
 import { useSpotifyPlayer, useQueue } from "@/lib/spotify";
 import { useLyricsContext } from "@/lib/lrclib";
@@ -14,16 +15,15 @@ import {
 import { DynamicIsland } from "@/components/player";
 
 // ---------------------------------------------------------------------------
-// Interlude – breathing bar animation
+// Interlude – breathing bars (FIXED HEIGHT so it doesn't shift lyrics)
 // ---------------------------------------------------------------------------
 function InterludeBreath({ progress }: { progress: number }) {
   const entrance = Math.min(1, progress * 3);
-  // Breathing sine wave
   const breath = Math.sin(progress * Math.PI * 6) * 0.5 + 0.5;
 
   return (
     <div
-      className="flex items-center py-10 pl-1"
+      className="flex items-center h-10 pl-1"
       style={{
         opacity: entrance,
         transition: "opacity 0.8s ease",
@@ -31,7 +31,7 @@ function InterludeBreath({ progress }: { progress: number }) {
     >
       <div className="flex items-center gap-1.5">
         {[0, 0.25, 0.5].map((offset, i) => {
-          const t = Math.sin((progress * Math.PI * 5) + (offset * Math.PI * 2));
+          const t = Math.sin(progress * Math.PI * 5 + offset * Math.PI * 2);
           const height = 6 + t * 10;
           return (
             <div
@@ -40,8 +40,9 @@ function InterludeBreath({ progress }: { progress: number }) {
               style={{
                 width: 4,
                 height,
-                opacity: 0.4 + breath * 0.4 + (i * 0.1),
-                transition: "height 0.4s cubic-bezier(.4,0,.2,1), opacity 0.4s ease",
+                opacity: 0.4 + breath * 0.4 + i * 0.1,
+                transition:
+                  "height 0.4s cubic-bezier(.4,0,.2,1), opacity 0.4s ease",
               }}
             />
           );
@@ -97,18 +98,15 @@ export default function LyricsPage() {
       ? (state.position / state.duration) * 100
       : 0;
 
-  // Queue for "Up Next" in outro
+  // Queue for "Up Next" in outro — refetch on every track change
   const { data: queueData, refetch: refetchQueue } = useQueue({
     enabled: !!track,
   });
   const nextTrack = queueData?.queue?.[0];
 
+  // Refetch queue whenever trackId changes (covers skip-forward AND skip-backward)
   useEffect(() => {
-    if (
-      trackId &&
-      prevTrackIdRef.current &&
-      trackId !== prevTrackIdRef.current
-    ) {
+    if (trackId) {
       refetchQueue();
     }
   }, [trackId, refetchQueue]);
@@ -143,7 +141,6 @@ export default function LyricsPage() {
   }, [lyrics, positionSeconds, state?.duration]);
 
   const showOutroVisuals = outroState.isOutro && !outroFadeOut;
-  const hideLyricsDuringOutro = showOutroVisuals && !userInteracted;
 
   // ---- Extract dominant color ----
   useEffect(() => {
@@ -175,8 +172,10 @@ export default function LyricsPage() {
   // ---- Reset scroll when song restarts (position jumps back significantly) ----
   useEffect(() => {
     const jumped = prevPositionRef.current - positionSeconds;
-    // If position jumped back more than 3 seconds, scroll to the current line
     if (jumped > 3) {
+      // Also refetch queue since the user rewound
+      refetchQueue();
+
       if (currentLineIndex <= 0 && lyricsContainerRef.current) {
         lyricsContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
       } else if (lineRefs.current[currentLineIndex]) {
@@ -187,14 +186,11 @@ export default function LyricsPage() {
       }
     }
     prevPositionRef.current = positionSeconds;
-  }, [positionSeconds, currentLineIndex]);
+  }, [positionSeconds, currentLineIndex, refetchQueue]);
 
   // Seek back during outro → fade out overlay
   useEffect(() => {
-    if (
-      outroState.isOutro &&
-      positionSeconds < prevPositionRef.current - 2
-    ) {
+    if (outroState.isOutro && positionSeconds < prevPositionRef.current - 2) {
       setOutroFadeOut(true);
       setTimeout(() => setOutroFadeOut(false), 500);
     }
@@ -261,16 +257,16 @@ export default function LyricsPage() {
       onClick={handleUserInteraction}
     >
       {/* ==============================================================
-          BACKGROUND – Blurred album art + animated liquify blobs
+          BACKGROUND – Slowly rotating blurred album art + liquify blobs
       ============================================================== */}
       <div className="absolute inset-0 -z-20 pointer-events-none overflow-hidden">
-        {/* Base blurred album art */}
+        {/* Base blurred album art — ROTATING */}
         {albumArt && (
           <img
             key={trackId}
             src={albumArt}
             alt=""
-            className="absolute inset-0 w-full h-full object-cover animate-slow-drift"
+            className="absolute -inset-20 w-[calc(100%+160px)] h-[calc(100%+160px)] object-cover animate-slow-rotate"
             style={{
               filter: "blur(90px) saturate(1.8) brightness(0.3)",
               opacity: 0.85,
@@ -279,7 +275,7 @@ export default function LyricsPage() {
         )}
         <div className="absolute inset-0 bg-black/40" />
 
-        {/* Floating liquify blobs — large, slow, organic */}
+        {/* Floating liquify blobs */}
         {albumArt && (
           <>
             <div
@@ -344,89 +340,91 @@ export default function LyricsPage() {
       </div>
 
       {/* ==============================================================
-          LEFT PANEL – Album art + track info (Apple Music style)
+          LEFT PANEL – Album art + track info
+          During OUTRO → expands to full width via Framer Motion
       ============================================================== */}
-      <div className="hidden lg:flex flex-col items-center justify-center w-1/3 shrink-0 px-10 relative z-10">
-        {/* Album cover with subtle shadow */}
-        <div className="relative mb-8 group">
-          {/* Ambient glow behind cover */}
+      <motion.div
+        className="hidden lg:flex flex-col items-center justify-center shrink-0 px-10 relative z-10"
+        animate={{
+          width: showOutroVisuals ? "100%" : "33.333%",
+        }}
+        transition={{ duration: 0.8, ease: [0.32, 0.72, 0, 1] }}
+      >
+        {/* Album cover with ambient glow */}
+        <motion.div
+          className="relative mb-6"
+          animate={{
+            scale: showOutroVisuals ? 1.05 : 1,
+          }}
+          transition={{ duration: 0.8, ease: [0.32, 0.72, 0, 1] }}
+        >
           <div
-            className="absolute -inset-6 rounded-full opacity-40 blur-3xl pointer-events-none"
+            className="absolute -inset-8 rounded-full opacity-40 blur-3xl pointer-events-none"
             style={{ background: acSolid }}
           />
           {albumArt ? (
             <img
               src={albumArt}
               alt={track.album.name}
-              className="relative w-72 h-72 rounded-2xl shadow-2xl shadow-black/60 object-cover"
+              className="relative w-100 h-100 rounded-2xl shadow-2xl shadow-black/60 object-cover"
             />
           ) : (
-            <div className="relative w-72 h-72 rounded-2xl bg-white/10 flex items-center justify-center shadow-2xl">
+            <div className="relative w-100 h-100 rounded-2xl bg-white/10 flex items-center justify-center shadow-2xl">
               <Music className="w-20 h-20 text-white/20" />
             </div>
           )}
-        </div>
+        </motion.div>
 
-        {/* Progress bar */}
-        <div className="w-72 mb-4">
-          <div className="w-full h-1 rounded-full bg-white/15 overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-300 ease-linear"
-              style={{
-                width: `${progress}%`,
-                background: `linear-gradient(90deg, ${acAlpha(0.7)}, white)`,
-              }}
-            />
+        {/* Track info — better presentation */}
+        <div className="w-64 space-y-3">
+          {/* Title */}
+          <div className="text-center">
+            <h1 className="text-xl font-bold text-white truncate leading-snug">
+              {track.name}
+            </h1>
+            <p className="text-sm text-white/55 truncate mt-1">
+              {track.artists.join(", ")}
+            </p>
           </div>
-          <div className="flex justify-between mt-1.5 text-[11px] text-white/45 font-medium tabular-nums">
-            <span>{formatTime(state?.position ?? 0)}</span>
-            <span>-{formatTime((state?.duration ?? 0) - (state?.position ?? 0))}</span>
+
+          {/* Progress bar */}
+          <div>
+            <div className="w-full h-0.75 rounded-full bg-white/12 overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-300 ease-linear"
+                style={{
+                  width: `${progress}%`,
+                  background: `linear-gradient(90deg, ${acAlpha(0.8)}, white)`,
+                }}
+              />
+            </div>
+            <div className="flex justify-between mt-1 text-[10px] text-white/40 font-medium tabular-nums">
+              <span>{formatTime(state?.position ?? 0)}</span>
+              <span>
+                -{formatTime((state?.duration ?? 0) - (state?.position ?? 0))}
+              </span>
+            </div>
+          </div>
+
+          {/* Album name pill */}
+          <div className="flex justify-center">
+            <span className="text-[11px] text-white/35 bg-white/5 rounded-full px-3 py-1 truncate max-w-full">
+              {track.album.name}
+            </span>
           </div>
         </div>
 
-        {/* Track info */}
-        <div className="w-72 text-center">
-          <h1 className="text-lg font-semibold text-white truncate leading-tight">
-            {track.name}
-          </h1>
-          <p className="text-sm text-white/60 truncate mt-1">
-            {track.artists.join(", ")}
-          </p>
-          <p className="text-xs text-white/35 truncate mt-0.5">
-            {track.album.name}
-          </p>
-        </div>
-      </div>
-
-      {/* ==============================================================
-          OUTRO – minimal overlay with "Up Next"
-      ============================================================== */}
-      {showOutroVisuals && (
-        <div
-          className={cn(
-            "absolute inset-0 z-30 flex flex-col items-center justify-end pb-36 transition-opacity duration-700",
-            outroFadeOut && "opacity-0"
-          )}
-          onClick={handleUserInteraction}
-          onMouseMove={handleUserInteraction}
-        >
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              background: `rgba(0,0,0,${0.2 + outroState.progress * 0.35})`,
-            }}
-          />
-
-          <div
-            className="relative z-10 w-full max-w-sm px-6"
-            style={{
-              opacity: Math.min(1, outroState.progress * 2),
-              transform: `translateY(${(1 - Math.min(1, outroState.progress * 2)) * 24}px)`,
-              transition: "opacity 0.6s ease, transform 0.6s ease",
-            }}
-          >
-            {nextTrack ? (
-              <div className="flex items-center gap-4 p-4 rounded-2xl bg-white/10 backdrop-blur-2xl border border-white/10">
+        {/* ---- "Up Next" card overlaid on expanded left panel during outro ---- */}
+        <AnimatePresence>
+          {showOutroVisuals && nextTrack && (
+            <motion.div
+              className="absolute bottom-32 left-1/2 w-full max-w-sm px-6"
+              initial={{ opacity: 0, y: 30, x: "-50%" }}
+              animate={{ opacity: 1, y: 0, x: "-50%" }}
+              exit={{ opacity: 0, y: 20, x: "-50%" }}
+              transition={{ duration: 0.6, delay: 0.3, ease: [0.32, 0.72, 0, 1] }}
+            >
+              <div className="flex items-center gap-4 p-4 rounded-2xl bg-white/8 backdrop-blur-2xl border border-white/10">
                 {nextTrack.album.images[0]?.url && (
                   <img
                     src={nextTrack.album.images[0].url}
@@ -435,36 +433,51 @@ export default function LyricsPage() {
                   />
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] uppercase tracking-widest text-white/50 mb-0.5 flex items-center gap-1.5">
+                  <p className="text-[11px] uppercase tracking-widest text-white/45 mb-0.5 flex items-center gap-1.5">
                     <SkipForward className="w-3 h-3" />
                     Next
                   </p>
                   <p className="font-semibold text-white truncate text-sm">
                     {nextTrack.name}
                   </p>
-                  <p className="text-xs text-white/60 truncate">
+                  <p className="text-xs text-white/55 truncate">
                     {nextTrack.artists
                       .map((a: { name: string }) => a.name)
                       .join(", ")}
                   </p>
                 </div>
               </div>
-            ) : outroState.progress > 0.5 ? (
-              <p className="text-center text-sm text-white/40">End of queue</p>
-            ) : null}
-          </div>
-        </div>
-      )}
+            </motion.div>
+          )}
+
+          {showOutroVisuals && !nextTrack && outroState.progress > 0.5 && (
+            <motion.p
+              className="absolute bottom-24 text-sm text-white/40"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              End of queue
+            </motion.p>
+          )}
+        </AnimatePresence>
+      </motion.div>
 
       {/* ==============================================================
-          RIGHT PANEL – Lyrics
+          RIGHT PANEL – Lyrics (fades out during outro as left expands)
       ============================================================== */}
-      <div
+      <motion.div
         ref={lyricsContainerRef}
-        className={cn(
-          "flex-1 overflow-y-auto scrollbar-hide transition-opacity duration-500 relative",
-          hideLyricsDuringOutro && "opacity-0 pointer-events-none"
-        )}
+        className="flex-1 overflow-y-auto scrollbar-hide relative"
+        animate={{
+          opacity: showOutroVisuals && !userInteracted ? 0 : 1,
+        }}
+        transition={{ duration: 0.6 }}
+        style={{
+          pointerEvents:
+            showOutroVisuals && !userInteracted ? "none" : "auto",
+        }}
       >
         {/* Mobile-only: compact track info bar at top */}
         <div className="lg:hidden sticky top-0 z-20 px-6 py-3 bg-black/30 backdrop-blur-xl border-b border-white/5">
@@ -539,7 +552,6 @@ export default function LyricsPage() {
 
                   if (!line.text.trim()) return null;
 
-                  // Apple Music: current = bright, ±1 slightly faded, rest very dim & blurred
                   const blurPx = isCurrent ? 0 : Math.min(distance * 2, 7);
                   const lineOpacity = isCurrent
                     ? 1
@@ -547,7 +559,6 @@ export default function LyricsPage() {
                       ? Math.max(0.06, 0.35 - (distance - 1) * 0.12)
                       : Math.max(0.06, 0.4 - (distance - 1) * 0.12);
 
-                  // Staggered cascade delay
                   const cascadeDelay = Math.min(distance * 40, 200);
 
                   return (
@@ -557,7 +568,7 @@ export default function LyricsPage() {
                           lineRefs.current[index] = el;
                         }}
                         className={cn(
-                          "text-[2rem] sm:text-[2.2rem] lg:text-[2.4rem] xl:text-[2.8rem] font-medium leading-[1.2] cursor-pointer py-4 origin-left select-none",
+                          "text-[2rem] sm:text-[2.2rem] lg:text-[2.4rem] xl:text-[2.8rem] font-bold leading-[1.2] cursor-pointer py-4 origin-left select-none",
                           isCurrent && "text-white",
                           isPast && "text-white/30",
                           !isCurrent && !isPast && "text-white/25"
@@ -589,7 +600,7 @@ export default function LyricsPage() {
             )}
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Dynamic Island Player */}
       <DynamicIsland />
