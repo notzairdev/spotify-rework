@@ -53,7 +53,15 @@ export function PlayerBar() {
   } = useSpotifyPlayer();
 
   const shouldFetchQueue = !!state?.track;
-  const { data: queueData } = useQueue({ enabled: shouldFetchQueue });
+  const { data: queueData, refetch: refetchQueue } = useQueue({ enabled: shouldFetchQueue });
+
+  // Refetch queue whenever the track changes (covers skip, previous, auto-advance)
+  const trackId = state?.track?.id;
+  useEffect(() => {
+    if (trackId) {
+      refetchQueue();
+    }
+  }, [trackId, refetchQueue]);
   const { isLiked, toggleLike, isLoading: likeLoading } = useTrackLike();
 
   const toastShownRef = useRef<string | null>(null);
@@ -102,13 +110,6 @@ export function PlayerBar() {
       toast("Up Next", {
         description: `${nextTrackInQueue.name} • ${nextTrackInQueue.artists.map((a) => a.name).join(", ")}`,
         duration: 5000,
-        icon: nextTrackInQueue.album.images[2]?.url ? (
-          <img
-            src={nextTrackInQueue.album.images[2].url}
-            alt=""
-            className="w-10 h-10 rounded-lg"
-          />
-        ) : undefined,
       });
     }
   }, [

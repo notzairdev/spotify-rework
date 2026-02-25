@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useSpotifyPlayer, useQueue } from "@/lib/spotify";
 import { useLyricsContext } from "@/lib/lrclib";
 import { useFullscreen } from "@/lib/fullscreen";
+import { Slider } from "@/components/ui/slider";
 import {
   extractDominantColor,
   hslToString,
@@ -15,40 +16,38 @@ import {
 import { DynamicIsland } from "@/components/player";
 
 // ---------------------------------------------------------------------------
-// Interlude – breathing bars (FIXED HEIGHT so it doesn't shift lyrics)
+// Interlude – three bouncing dots (bigger)
 // ---------------------------------------------------------------------------
-function InterludeBreath({ progress }: { progress: number }) {
+function InterludeDots({ progress }: { progress: number }) {
   const entrance = Math.min(1, progress * 3);
-  const breath = Math.sin(progress * Math.PI * 6) * 0.5 + 0.5;
 
   return (
-    <div
-      className="flex items-center h-10 pl-1"
-      style={{
-        opacity: entrance,
-        transition: "opacity 0.8s ease",
-      }}
+    <motion.div
+      className="flex items-center h-14 pl-1"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: entrance }}
+      transition={{ duration: 0.6 }}
     >
-      <div className="flex items-center gap-1.5">
-        {[0, 0.25, 0.5].map((offset, i) => {
-          const t = Math.sin(progress * Math.PI * 5 + offset * Math.PI * 2);
-          const height = 6 + t * 10;
-          return (
-            <div
-              key={i}
-              className="rounded-full bg-white/50"
-              style={{
-                width: 4,
-                height,
-                opacity: 0.4 + breath * 0.4 + i * 0.1,
-                transition:
-                  "height 0.4s cubic-bezier(.4,0,.2,1), opacity 0.4s ease",
-              }}
-            />
-          );
-        })}
+      <div className="flex items-center gap-2.5">
+        {[0, 0.33, 0.66].map((offset, i) => (
+          <motion.div
+            key={i}
+            className="rounded-full bg-white/60"
+            style={{ width: 10, height: 10 }}
+            animate={{
+              y: [0, -10, 0],
+              opacity: [0.4, 0.9, 0.4],
+            }}
+            transition={{
+              duration: 1.2,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: offset,
+            }}
+          />
+        ))}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -63,6 +62,12 @@ export default function LyricsPage() {
   const prevTrackIdRef = useRef<string | null>(null);
   const prevPositionRef = useRef<number>(0);
   const prevLineRef = useRef<number>(-1);
+
+  // ---- User scroll detection state ----
+  const [userScrolling, setUserScrolling] = useState(false);
+  const isProgrammaticScroll = useRef(false);
+  const scrollCooldownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const { state, seek } = useSpotifyPlayer();
   const {
     lyrics,
@@ -118,6 +123,39 @@ export default function LyricsPage() {
     };
   }, [setFullscreen]);
 
+  // ---- User scroll detection ----
+  useEffect(() => {
+    const container = lyricsContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      // Ignore programmatic scrolls (triggered by auto-scroll)
+      if (isProgrammaticScroll.current) return;
+
+      // User is actively scrolling
+      setUserScrolling(true);
+
+      // Clear existing cooldown
+      if (scrollCooldownRef.current) {
+        clearTimeout(scrollCooldownRef.current);
+      }
+
+      // Set 2-second cooldown to resume auto-scroll
+      scrollCooldownRef.current = setTimeout(() => {
+        setUserScrolling(false);
+      }, 2000);
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+      if (scrollCooldownRef.current) {
+        clearTimeout(scrollCooldownRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userInteracted]);
+
   // ---- Outro detection ----
   const outroState = useMemo(() => {
     if (!lyrics.length || !state?.duration)
@@ -133,14 +171,15 @@ export default function LyricsPage() {
       const outroEnd = durationSeconds - 2;
       const p = Math.min(
         1,
-        Math.max(0, (positionSeconds - outroStart) / (outroEnd - outroStart))
+        Math.max(0, (positionSeconds - outroStart) / (outroEnd - outroStart)),
       );
       return { isOutro: true, progress: p };
     }
     return { isOutro: false, progress: 0 };
   }, [lyrics, positionSeconds, state?.duration]);
 
-  const showOutroVisuals = outroState.isOutro && !outroFadeOut;
+  const showOutroVisuals =
+    outroState.isOutro && !outroFadeOut && !userInteracted;
 
   // ---- Extract dominant color ----
   useEffect(() => {
@@ -160,11 +199,16 @@ export default function LyricsPage() {
     ) {
       setOutroFadeOut(true);
       setUserInteracted(false);
+      setUserScrolling(false);
       setTimeout(() => setOutroFadeOut(false), 500);
 
+      isProgrammaticScroll.current = true;
       if (lyricsContainerRef.current) {
         lyricsContainerRef.current.scrollTo({ top: 0, behavior: "instant" });
       }
+      requestAnimationFrame(() => {
+        isProgrammaticScroll.current = false;
+      });
     }
     prevTrackIdRef.current = trackId ?? null;
   }, [trackId]);
@@ -173,9 +217,9 @@ export default function LyricsPage() {
   useEffect(() => {
     const jumped = prevPositionRef.current - positionSeconds;
     if (jumped > 3) {
-      // Also refetch queue since the user rewound
       refetchQueue();
 
+      isProgrammaticScroll.current = true;
       if (currentLineIndex <= 0 && lyricsContainerRef.current) {
         lyricsContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
       } else if (lineRefs.current[currentLineIndex]) {
@@ -184,6 +228,9 @@ export default function LyricsPage() {
           block: "center",
         });
       }
+      setTimeout(() => {
+        isProgrammaticScroll.current = false;
+      }, 600);
     }
     prevPositionRef.current = positionSeconds;
   }, [positionSeconds, currentLineIndex, refetchQueue]);
@@ -204,20 +251,27 @@ export default function LyricsPage() {
     if (outroState.isOutro && !userInteracted) setUserInteracted(true);
   }, [outroState.isOutro, userInteracted]);
 
-  // ---- Auto-scroll to current line ----
+  // ---- Auto-scroll to current line (paused when user is scrolling) ----
   useEffect(() => {
+    if (userScrolling) return; // user is scrolling — don't auto-scroll
+
     if (
       lyrics.length > 0 &&
       currentLineIndex >= 0 &&
       lineRefs.current[currentLineIndex]
     ) {
+      isProgrammaticScroll.current = true;
       lineRefs.current[currentLineIndex]?.scrollIntoView({
         behavior: "smooth",
         block: "center",
       });
+      // Clear programmatic flag after scroll settles
+      setTimeout(() => {
+        isProgrammaticScroll.current = false;
+      }, 600);
     }
     prevLineRef.current = currentLineIndex;
-  }, [currentLineIndex, lyrics.length]);
+  }, [currentLineIndex, lyrics.length, userScrolling]);
 
   // ---- Seek on click ----
   const handleLineClick = (index: number) => {
@@ -252,7 +306,7 @@ export default function LyricsPage() {
     <div
       className={cn(
         "relative h-screen flex overflow-hidden",
-        isFullscreen && "fixed inset-0 z-60"
+        isFullscreen && "fixed inset-0 z-60",
       )}
       onClick={handleUserInteraction}
     >
@@ -262,14 +316,16 @@ export default function LyricsPage() {
       <div className="absolute inset-0 -z-20 pointer-events-none overflow-hidden">
         {/* Base blurred album art — ROTATING */}
         {albumArt && (
-          <img
+          <motion.img
             key={trackId}
             src={albumArt}
             alt=""
             className="absolute -inset-20 w-[calc(100%+160px)] h-[calc(100%+160px)] object-cover animate-slow-rotate"
+            initial={{ opacity: 0, scale: 1.4 }}
+            animate={{ opacity: 0.85, scale: 1.3 }}
+            transition={{ duration: 1.5, ease: "easeOut" }}
             style={{
               filter: "blur(90px) saturate(1.8) brightness(0.3)",
-              opacity: 0.85,
             }}
           />
         )}
@@ -278,8 +334,11 @@ export default function LyricsPage() {
         {/* Floating liquify blobs */}
         {albumArt && (
           <>
-            <div
+            <motion.div
               className="absolute rounded-full pointer-events-none animate-float-slow"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 2, delay: 0.3 }}
               style={{
                 width: 380,
                 height: 380,
@@ -289,8 +348,11 @@ export default function LyricsPage() {
                 filter: "blur(120px)",
               }}
             />
-            <div
+            <motion.div
               className="absolute rounded-full pointer-events-none animate-float-slower"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 2, delay: 0.6 }}
               style={{
                 width: 300,
                 height: 300,
@@ -300,8 +362,11 @@ export default function LyricsPage() {
                 filter: "blur(100px)",
               }}
             />
-            <div
+            <motion.div
               className="absolute rounded-full pointer-events-none animate-float"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 2, delay: 0.9 }}
               style={{
                 width: 220,
                 height: 220,
@@ -311,8 +376,11 @@ export default function LyricsPage() {
                 filter: "blur(90px)",
               }}
             />
-            <div
+            <motion.div
               className="absolute rounded-full pointer-events-none animate-float-slow"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 2, delay: 1.2 }}
               style={{
                 width: 260,
                 height: 260,
@@ -323,8 +391,11 @@ export default function LyricsPage() {
                 animationDelay: "2s",
               }}
             />
-            <div
+            <motion.div
               className="absolute rounded-full pointer-events-none animate-float-slower"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 2, delay: 1.5 }}
               style={{
                 width: 200,
                 height: 200,
@@ -358,15 +429,22 @@ export default function LyricsPage() {
           }}
           transition={{ duration: 0.8, ease: [0.32, 0.72, 0, 1] }}
         >
-          <div
-            className="absolute -inset-8 rounded-full opacity-40 blur-3xl pointer-events-none"
+          <motion.div
+            className="absolute -inset-8 rounded-full blur-3xl pointer-events-none"
+            animate={{ opacity: 0.4 }}
+            initial={{ opacity: 0 }}
+            transition={{ duration: 1.5 }}
             style={{ background: acSolid }}
           />
           {albumArt ? (
-            <img
+            <motion.img
+              key={`cover-${trackId}`}
               src={albumArt}
               alt={track.album.name}
               className="relative w-100 h-100 rounded-2xl shadow-2xl shadow-black/60 object-cover"
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.6, ease: [0.32, 0.72, 0, 1] }}
             />
           ) : (
             <div className="relative w-100 h-100 rounded-2xl bg-white/10 flex items-center justify-center shadow-2xl">
@@ -375,9 +453,14 @@ export default function LyricsPage() {
           )}
         </motion.div>
 
-        {/* Track info — better presentation */}
-        <div className="w-64 space-y-3">
-          {/* Title */}
+        {/* Track info */}
+        <motion.div
+          key={`info-${trackId}`}
+          className="w-64 space-y-3"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2, ease: "easeOut" }}
+        >
           <div className="text-center">
             <h1 className="text-xl font-bold text-white truncate leading-snug">
               {track.name}
@@ -387,17 +470,21 @@ export default function LyricsPage() {
             </p>
           </div>
 
-          {/* Progress bar */}
           <div>
-            <div className="w-full h-0.75 rounded-full bg-white/12 overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-300 ease-linear"
-                style={{
-                  width: `${progress}%`,
-                  background: `linear-gradient(90deg, ${acAlpha(0.8)}, white)`,
-                }}
-              />
-            </div>
+            <Slider
+              value={[progress]}
+              onValueChange={(value) => {
+                if (state?.duration) {
+                  seek((value[0] / 100) * state.duration);
+                }
+              }}
+              max={100}
+              step={0.1}
+              className="w-full"
+              trackClassName="data-horizontal:h-1 bg-white/12 rounded-full"
+              rangeClassName="data-horizontal:h-1 bg-white/80"
+              thumbClassName="size-2.5 rounded-full opacity-0 hover:opacity-100 transition-opacity border-none"
+            />
             <div className="flex justify-between mt-1 text-[10px] text-white/40 font-medium tabular-nums">
               <span>{formatTime(state?.position ?? 0)}</span>
               <span>
@@ -406,13 +493,12 @@ export default function LyricsPage() {
             </div>
           </div>
 
-          {/* Album name pill */}
           <div className="flex justify-center">
             <span className="text-[11px] text-white/35 bg-white/5 rounded-full px-3 py-1 truncate max-w-full">
               {track.album.name}
             </span>
           </div>
-        </div>
+        </motion.div>
 
         {/* ---- "Up Next" card overlaid on expanded left panel during outro ---- */}
         <AnimatePresence>
@@ -422,7 +508,11 @@ export default function LyricsPage() {
               initial={{ opacity: 0, y: 30, x: "-50%" }}
               animate={{ opacity: 1, y: 0, x: "-50%" }}
               exit={{ opacity: 0, y: 20, x: "-50%" }}
-              transition={{ duration: 0.6, delay: 0.3, ease: [0.32, 0.72, 0, 1] }}
+              transition={{
+                duration: 0.6,
+                delay: 0.3,
+                ease: [0.32, 0.72, 0, 1],
+              }}
             >
               <div className="flex items-center gap-4 p-4 rounded-2xl bg-white/8 backdrop-blur-2xl border border-white/10">
                 {nextTrack.album.images[0]?.url && (
@@ -471,12 +561,11 @@ export default function LyricsPage() {
         ref={lyricsContainerRef}
         className="flex-1 overflow-y-auto scrollbar-hide relative"
         animate={{
-          opacity: showOutroVisuals && !userInteracted ? 0 : 1,
+          opacity: showOutroVisuals ? 0 : 1,
         }}
         transition={{ duration: 0.6 }}
         style={{
-          pointerEvents:
-            showOutroVisuals && !userInteracted ? "none" : "auto",
+          pointerEvents: showOutroVisuals ? "none" : "auto",
         }}
       >
         {/* Mobile-only: compact track info bar at top */}
@@ -504,18 +593,28 @@ export default function LyricsPage() {
           <div className="max-w-3xl xl:max-w-5xl">
             {/* Loading */}
             {isLoading && (
-              <div className="flex flex-col items-center justify-center py-32 text-center">
+              <motion.div
+                className="flex flex-col items-center justify-center py-32 text-center"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5 }}
+              >
                 <div className="relative mb-6">
                   <div className="w-16 h-16 rounded-full bg-white/10 animate-pulse" />
                   <Music className="w-8 h-8 text-white/80 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                 </div>
                 <p className="text-sm text-white/50">Fetching lyrics…</p>
-              </div>
+              </motion.div>
             )}
 
             {/* Instrumental */}
             {!isLoading && isInstrumental && (
-              <div className="flex flex-col items-center justify-center py-32 text-center">
+              <motion.div
+                className="flex flex-col items-center justify-center py-32 text-center"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6 }}
+              >
                 <Music className="w-16 h-16 text-white/20 mb-4" />
                 <h2 className="text-xl font-semibold text-white/60">
                   Instrumental
@@ -523,25 +622,30 @@ export default function LyricsPage() {
                 <p className="text-sm text-white/40 mt-2">
                   This track has no lyrics
                 </p>
-              </div>
+              </motion.div>
             )}
 
             {/* No lyrics */}
             {!isLoading && !isInstrumental && !hasLyrics && error && (
-              <div className="flex flex-col items-center justify-center py-32 text-center">
+              <motion.div
+                className="flex flex-col items-center justify-center py-32 text-center"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6 }}
+              >
                 <Music className="w-16 h-16 text-white/20 mb-4" />
                 <h2 className="text-xl font-semibold text-white/60">
                   No lyrics available
                 </h2>
                 <p className="text-sm text-white/40 mt-2">{error}</p>
-              </div>
+              </motion.div>
             )}
 
             {/* ---- Synced lyrics ---- */}
             {!isLoading && lyrics.length > 0 && (
               <div>
                 {interludeAfterIndex === -1 && interludeProgress !== null && (
-                  <InterludeBreath progress={interludeProgress} />
+                  <InterludeDots progress={interludeProgress} />
                 )}
 
                 {lyrics.map((line, index) => {
@@ -552,39 +656,51 @@ export default function LyricsPage() {
 
                   if (!line.text.trim()) return null;
 
-                  const blurPx = isCurrent ? 0 : Math.min(distance * 2, 7);
-                  const lineOpacity = isCurrent
-                    ? 1
-                    : isPast
-                      ? Math.max(0.06, 0.35 - (distance - 1) * 0.12)
-                      : Math.max(0.06, 0.4 - (distance - 1) * 0.12);
+                  // When user is scrolling: no blur, show all lines clearly
+                  const blurPx =
+                    userScrolling || isCurrent ? 0 : Math.min(distance * 2, 7);
+                  const lineOpacity = userScrolling
+                    ? isCurrent
+                      ? 1
+                      : 0.55
+                    : isCurrent
+                      ? 1
+                      : isPast
+                        ? Math.max(0.06, 0.35 - (distance - 1) * 0.12)
+                        : Math.max(0.06, 0.4 - (distance - 1) * 0.12);
 
-                  const cascadeDelay = Math.min(distance * 40, 200);
+                  // Staggered delay: each line further from current gets progressively more delay
+                  const cascadeDelay = isCurrent ? 0 : 0.15 + distance * 0.06;
 
                   return (
                     <div key={index}>
-                      <p
+                      <motion.p
                         ref={(el) => {
                           lineRefs.current[index] = el;
                         }}
                         className={cn(
-                          "text-[2rem] sm:text-[2.2rem] lg:text-[2.4rem] xl:text-[2.8rem] font-bold leading-[1.2] cursor-pointer py-4 origin-left select-none",
+                          "text-[2.2rem] sm:text-[2.4rem] lg:text-[2.6rem] xl:text-[3rem] font-bold leading-[1.2] cursor-pointer py-4 origin-left select-none",
                           isCurrent && "text-white",
                           isPast && "text-white/30",
-                          !isCurrent && !isPast && "text-white/25"
+                          !isCurrent && !isPast && "text-white/25",
                         )}
-                        style={{
+                        animate={{
                           opacity: lineOpacity,
                           filter: `blur(${blurPx}px)`,
-                          transition: `opacity 450ms cubic-bezier(.25,.1,.25,1) ${cascadeDelay}ms, filter 450ms cubic-bezier(.25,.1,.25,1) ${cascadeDelay}ms, color 350ms ease ${cascadeDelay}ms`,
+                          scale: isCurrent ? 1 : 0.97,
+                        }}
+                        transition={{
+                          duration: 0.5,
+                          delay: cascadeDelay,
+                          ease: [0.32, 0.72, 0, 1],
                         }}
                         onClick={() => handleLineClick(index)}
                       >
                         {line.text}
-                      </p>
+                      </motion.p>
 
                       {hasInterludeAfter && interludeProgress !== null && (
-                        <InterludeBreath progress={interludeProgress} />
+                        <InterludeDots progress={interludeProgress} />
                       )}
                     </div>
                   );
