@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { isTauriContext } from "@/lib/env";
 import { Titlebar } from "@/components/tauri/titlebar";
 import { PlayerBar } from "@/components/player";
+import { LoginCard } from "@/components/auth/login-card";
 
 interface AppGateProps {
   children: ReactNode;
@@ -18,7 +19,7 @@ const HIDE_PLAYER_PATHS = ["/", "/callback"];
  * AppGate handles the initial auth verification flow:
  * 1. Shows nothing (blank screen) while checking auth state
  * 2. If authenticated → allow access to authenticated pages
- * 3. If not authenticated → show login (page content)
+ * 3. If not authenticated → show login page (no navigation needed)
  * 4. Handles token refresh automatically on app start
  * 5. Renders the Titlebar consistently across all pages
  */
@@ -26,50 +27,40 @@ export function AppGate({ children }: AppGateProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { isLoading, isAuthenticated, session } = useAuth();
-  const [isReady, setIsReady] = useState(false);
+  const hasRedirectedToHome = useRef(false);
 
+  // Only redirect authenticated users from login page to home
+  // This is the ONLY navigation we perform — never redirect for unauthenticated users
   useEffect(() => {
-    // Skip gate logic for callback page
-    if (pathname === "/callback") {
-      setIsReady(true);
-      return;
-    }
+    if (isLoading || !isTauriContext()) return;
 
-    // Wait for auth to finish loading
-    if (isLoading) {
-      return;
+    if (isAuthenticated && session && pathname === "/" && !hasRedirectedToHome.current) {
+      hasRedirectedToHome.current = true;
+      router.replace("/home");
     }
-
-    // Not in Tauri context (dev browser) - just show content
-    if (!isTauriContext()) {
-      setIsReady(true);
-      return;
+    // Reset guard when we leave the login page
+    if (pathname !== "/") {
+      hasRedirectedToHome.current = false;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, isAuthenticated, pathname]);
 
-    // Auth check complete
-    if (isAuthenticated && session) {
-      // User is authenticated
-      if (pathname === "/") {
-        // On login page but authenticated, go to home
-        router.replace("/home");
-      } else {
-        // On any other page, allow access
-        setIsReady(true);
-      }
-    } else {
-      // User is not authenticated
-      if (pathname !== "/") {
-        // Redirect to login page
-        router.replace("/");
-      } else {
-        setIsReady(true);
-      }
-    }
-  }, [isLoading, isAuthenticated, session, pathname, router]);
-
-  // Show absolutely nothing while verifying
-  if (!isReady) {
+  // While loading auth state, show nothing
+  if (isLoading) {
     return null;
+  }
+
+  // In Tauri context, if not authenticated: render login page directly
+  // NO router.replace() here — that was causing the infinite loop
+  if (isTauriContext() && !isAuthenticated && pathname !== "/callback") {
+    return (
+      <div className="flex h-screen flex-col overflow-hidden">
+        <Titlebar />
+        <main className="flex-1 overflow-y-auto scrollbar-hide flex items-center justify-center p-4">
+          <LoginCard />
+        </main>
+      </div>
+    );
   }
 
   const showPlayerBar = isAuthenticated && !HIDE_PLAYER_PATHS.includes(pathname) && pathname !== "/lyrics";
