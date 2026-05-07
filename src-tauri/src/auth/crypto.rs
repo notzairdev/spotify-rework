@@ -11,8 +11,7 @@ use super::types::AuthError;
 /// Get the machine's unique identifier (HWID)
 /// This is used as the encryption key basis
 pub fn get_hwid() -> Result<String, AuthError> {
-    machine_uid::get()
-        .map_err(|e| AuthError::EncryptionError(format!("Failed to get HWID: {}", e)))
+    machine_uid::get().map_err(|e| AuthError::EncryptionError(format!("Failed to get HWID: {}", e)))
 }
 
 /// Derive a 256-bit encryption key from HWID

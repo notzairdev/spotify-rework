@@ -1077,7 +1077,6 @@ export async function getFeaturedPlaylists(
           offset: offset,
           next: null,
           previous: null,
-          href: "",
         },
       };
     }

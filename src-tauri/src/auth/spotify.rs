@@ -311,14 +311,11 @@ pub async fn get_session(state: State<'_, AppAuthState>) -> Result<Option<AuthSe
         guard.clone()
     }
     .or_else(|| {
-        storage::load_auth_state()
-            .ok()
-            .flatten()
-            .map(|s| {
-                // Store in memory for next time
-                *state.current_auth.lock().unwrap() = Some(s.clone());
-                s
-            })
+        storage::load_auth_state().ok().flatten().map(|s| {
+            // Store in memory for next time
+            *state.current_auth.lock().unwrap() = Some(s.clone());
+            s
+        })
     });
 
     let Some(auth_state) = auth_state else {
@@ -345,9 +342,7 @@ pub async fn get_session(state: State<'_, AppAuthState>) -> Result<Option<AuthSe
 
 /// Get access token for Playback SDK
 #[tauri::command]
-pub async fn get_access_token(
-    state: State<'_, AppAuthState>,
-) -> Result<String, AuthError> {
+pub async fn get_access_token(state: State<'_, AppAuthState>) -> Result<String, AuthError> {
     let session = get_session(state)
         .await?
         .ok_or(AuthError::NotAuthenticated)?;
@@ -372,11 +367,9 @@ pub fn is_authenticated(state: State<AppAuthState>) -> bool {
 
 /// Start OAuth flow - opens browser and starts local server to capture callback
 #[tauri::command]
-pub async fn start_auth_flow(
-    state: State<'_, AppAuthState>,
-) -> Result<AuthSession, AuthError> {
+pub async fn start_auth_flow(state: State<'_, AppAuthState>) -> Result<AuthSession, AuthError> {
     use tiny_http::{Response, Server};
-    
+
     if state.config.client_id.is_empty() {
         return Err(AuthError::SpotifyError("Client ID not configured".into()));
     }
@@ -416,7 +409,10 @@ pub async fn start_auth_flow(
     // Open browser with auth URL
     if let Err(e) = open::that(&auth_url) {
         log::error!("Failed to open browser: {}", e);
-        return Err(AuthError::SpotifyError(format!("Failed to open browser: {}", e)));
+        return Err(AuthError::SpotifyError(format!(
+            "Failed to open browser: {}",
+            e
+        )));
     }
 
     // Wait for callback request (with timeout)

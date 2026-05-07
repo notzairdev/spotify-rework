@@ -7,13 +7,16 @@ import { isTauriContext } from "@/lib/env";
 import { Titlebar } from "@/components/tauri/titlebar";
 import { PlayerBar } from "@/components/player";
 import { LoginCard } from "@/components/auth/login-card";
+import { useSpotifyPlayer } from "@/lib/spotify";
+import { Window } from "@tauri-apps/api/window";
+import { listen, emit } from "@tauri-apps/api/event";
 
 interface AppGateProps {
   children: ReactNode;
 }
 
 // Pages where player bar should be hidden
-const HIDE_PLAYER_PATHS = ["/", "/callback"];
+const HIDE_PLAYER_PATHS = ["/", "/callback", "/island"];
 
 /**
  * AppGate handles the initial auth verification flow:
@@ -27,7 +30,52 @@ export function AppGate({ children }: AppGateProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { isLoading, isAuthenticated, session } = useAuth();
+  const { state: playerState } = useSpotifyPlayer();
   const hasRedirectedToHome = useRef(false);
+  const playerStateRef = useRef(playerState);
+
+  useEffect(() => {
+    playerStateRef.current = playerState;
+    // If playback pauses entirely or track is cleared, hide island if we are minimized
+    if ((!playerState?.track || !playerState?.isPlaying) && isTauriContext()) {
+      emit("island-visibility", false);
+      setTimeout(() => {
+        Window.getByLabel("island").then(island => island?.hide()).catch(console.error);
+      }, 300);
+    }
+  }, [playerState]);
+
+  // Handle dynamic island visibility when main window is minimized
+  useEffect(() => {
+    if (!isTauriContext()) return;
+
+    let unlisten: (() => void) | undefined;
+    const setupIslandListener = async () => {
+      unlisten = await listen<boolean>("main-window-minimized", async (event) => {
+        const isMinimized = event.payload;
+        const islandWindow = await Window.getByLabel("island");
+        if (!islandWindow) return;
+
+        // Only show island when ACTIVE playback is happening (is playing)
+        if (isMinimized && playerStateRef.current?.track && playerStateRef.current?.isPlaying) {
+          // Tell the island to animate IN before showing window completely
+          emit("island-visibility", true);
+          await islandWindow.show();
+        } else {
+          // Tell the island to animate OUT
+          emit("island-visibility", false);
+          // Wait for animation before hiding completely
+          setTimeout(async () => {
+            await islandWindow.hide();
+          }, 300);
+        }
+      });
+    };
+    setupIslandListener();
+    return () => {
+      unlisten?.();
+    };
+  }, []);
 
   // Only redirect authenticated users from login page to home
   // This is the ONLY navigation we perform — never redirect for unauthenticated users
@@ -61,6 +109,10 @@ export function AppGate({ children }: AppGateProps) {
         </main>
       </div>
     );
+  }
+
+  if (pathname === "/island") {
+    return <main className="w-screen h-screen overflow-hidden">{children}</main>;
   }
 
   const showPlayerBar = isAuthenticated && !HIDE_PLAYER_PATHS.includes(pathname) && pathname !== "/lyrics";
