@@ -123,7 +123,7 @@ export function Titlebar() {
         {/* Center: Navigation as minimal tabs - hidden in fullscreen */}
         <nav className={cn(
           "flex-1 flex items-center justify-center gap-4 transition-all duration-500",
-          isFullscreen && "opacity-0 pointer-events-none"
+          (isFullscreen || pathname === "/") && "opacity-0 pointer-events-none"
         )}>
           {/* Navigation history buttons */}
           <div className="flex items-center gap-1">

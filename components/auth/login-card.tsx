@@ -4,9 +4,16 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { ENV } from "@/lib/env";
+import SoftAurora from "../SoftAurora";
 
 export function LoginCard() {
   const router = useRouter();
@@ -23,7 +30,9 @@ export function LoginCard() {
       router.push("/home");
     } catch (err) {
       setIsLoggingIn(false);
-      setLoginError(err instanceof Error ? err.message : "Login failed. Please try again.");
+      setLoginError(
+        err instanceof Error ? err.message : "Login failed. Please try again.",
+      );
     }
   };
 
@@ -37,8 +46,12 @@ export function LoginCard() {
     return (
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-background">
         <Spinner className="h-12 w-12 text-[#1DB954]" />
-        <p className="text-lg text-muted-foreground">Connecting to Spotify...</p>
-        <p className="text-sm text-muted-foreground/60">Complete authentication in your browser</p>
+        <p className="text-lg text-muted-foreground">
+          Connecting to Spotify...
+        </p>
+        <p className="text-sm text-muted-foreground/60">
+          Complete authentication in your browser
+        </p>
       </div>
     );
   }
@@ -100,37 +113,59 @@ export function LoginCard() {
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Connect to Spotify</CardTitle>
-        <CardDescription>
-          Sign in with your Spotify account to start listening
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        {error && (
-          <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-            {error.message}
-          </div>
-        )}
+    <>
+      <SoftAurora
+        speed={0.6}
+        scale={0.8}
+        brightness={.5}
+        color1="#b1ff92"
+        color2="#0eae00"
+        noiseFrequency={2.5}
+        noiseAmplitude={1}
+        bandHeight={0.5}
+        bandSpread={1}
+        octaveDecay={0.1}
+        layerOffset={0}
+        colorSpeed={1}
+        mouseInfluence={0}
+      />
+      <Card className="w-full max-w-md bg-transparent ring-0 fixed">
+        <CardHeader className="text-center">
+          <CardTitle>
+            <img
+              src="/svgl/spotify.svg"
+              alt="Spotify Logo"
+              className="mx-auto mb-4 h-12 w-auto"
+            />
+          </CardTitle>
+          <CardDescription>
+            Use your Spotify account to access Spotify Reworked. This client is not affiliated with Spotify AB or any of its affiliates.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {error && (
+            <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+              {error.message}
+            </div>
+          )}
 
-        <Button
-          size="lg"
-          className="w-full gap-2 bg-[#1DB954] hover:bg-[#1ed760] text-white"
-          onClick={handleLogin}
-          disabled={isLoading || isLoggingIn}
-        >
-          <SpotifyIcon className="h-5 w-5" />
-          Login with Spotify
-        </Button>
+          <Button
+            className="gap-2 p-5 rounded-full bg-transparent border-2 text-white hover:bg-transparent border-white/20 hover:border-white/40 transition-colors text-sm"
+            onClick={handleLogin}
+            disabled={isLoading || isLoggingIn}
+          >
+            <SpotifyIcon />
+            Login with Spotify
+          </Button>
 
-        {!ENV.isTauri && (
-          <p className="text-center text-xs text-muted-foreground">
-            Login is only available in the desktop app
-          </p>
-        )}
-      </CardContent>
-    </Card>
+          {!ENV.isTauri && (
+            <p className="text-center text-xs text-muted-foreground">
+              Login is only available in the desktop app
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </>
   );
 }
 
@@ -156,7 +191,11 @@ function XIcon({ className }: { className?: string }) {
       stroke="currentColor"
       strokeWidth={2}
     >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6 18L18 6M6 6l12 12"
+      />
     </svg>
   );
 }
