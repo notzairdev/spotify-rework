@@ -164,9 +164,9 @@ export function TrackContextMenu({
                 onClick={() => handleAddToPlaylist(playlist.id, playlist.name)}
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  {playlist.images[0]?.url ? (
+                  {playlist.images?.[0]?.url ? (
                     <img
-                      src={playlist.images[0].url}
+                      src={playlist.images?.[0]?.url}
                       alt=""
                       className="w-6 h-6 rounded object-cover"
                     />

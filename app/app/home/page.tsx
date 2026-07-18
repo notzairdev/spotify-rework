@@ -80,7 +80,7 @@ export default function HomePage() {
   );
 
   return (
-    <div className="space-y-16 animate-fade-in container mx-auto">
+    <div className="space-y-16 animate-fade-in container mx-auto py-20">
       {/* Hero Section */}
       <section className="relative">
         <div className="flex items-end justify-between">
