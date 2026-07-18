@@ -126,7 +126,7 @@ export default function ArtistPage({ params }: PageProps) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4">
         <p className="text-muted-foreground">Artista no encontrado</p>
-        <Button variant="outline" onClick={() => router.push("/home")}>
+        <Button variant="outline" onClick={() => router.push("/app/home")}>
           Volver al inicio
         </Button>
       </div>
@@ -280,7 +280,7 @@ export default function ArtistPage({ params }: PageProps) {
 
                   {track.album?.id ? (
                     <Link
-                      href={`/album/${track.album.id}`}
+                      href={`/app/album/${track.album.id}`}
                       className="hidden truncate text-sm text-muted-foreground hover:underline md:block"
                       onClick={(e) => e.stopPropagation()}
                     >
@@ -333,7 +333,7 @@ export default function ArtistPage({ params }: PageProps) {
             {displayedAlbums.map((album) => (
               <Link
                 key={album.id}
-                href={`/album/${album.id}`}
+                href={`/app/album/${album.id}`}
                 className="group"
               >
                 <div className="relative aspect-square overflow-hidden rounded-lg transition-transform group-hover:scale-105">
@@ -385,7 +385,7 @@ export default function ArtistPage({ params }: PageProps) {
               {appearsOn.slice(0, 10).map((album) => (
                 <Link
                   key={album.id}
-                  href={`/album/${album.id}`}
+                  href={`/app/album/${album.id}`}
                   className="group shrink-0 w-36"
                 >
                   <div className="relative aspect-square overflow-hidden rounded-lg transition-transform group-hover:scale-105">
@@ -436,7 +436,7 @@ export default function ArtistPage({ params }: PageProps) {
               {relatedArtists.slice(0, 8).map((relatedArtist) => (
                 <Link
                   key={relatedArtist.id}
-                  href={`/artist/${relatedArtist.id}`}
+                  href={`/app/artist/${relatedArtist.id}`}
                   className="group shrink-0 text-center"
                 >
                   <div className="relative size-32 overflow-hidden rounded-full transition-transform group-hover:scale-105">

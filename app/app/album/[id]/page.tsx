@@ -156,7 +156,7 @@ export default function AlbumPage({ params }: PageProps) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4">
         <p className="text-muted-foreground">Album not found</p>
-        <Button variant="outline" onClick={() => router.push("/home")}>
+        <Button variant="outline" onClick={() => router.push("/app/home")}>
           Go back home
         </Button>
       </div>
@@ -240,7 +240,7 @@ export default function AlbumPage({ params }: PageProps) {
               {album.artists?.map((artist, i) => (
                 <span key={artist.id}>
                   <Link
-                    href={`/artist/${artist.id}`}
+                    href={`/app/artist/${artist.id}`}
                     className="text-lg text-primary hover:underline"
                   >
                     {artist.name}
@@ -348,7 +348,7 @@ export default function AlbumPage({ params }: PageProps) {
                     {track.artists?.map((artist, i) => (
                       <span key={artist.id}>
                         <Link
-                          href={`/artist/${artist.id}`}
+                          href={`/app/artist/${artist.id}`}
                           className="hover:underline"
                           onClick={(e) => e.stopPropagation()}
                         >

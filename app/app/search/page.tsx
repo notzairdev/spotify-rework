@@ -158,7 +158,7 @@ export default function SearchPage() {
                 {results.artists.items.slice(0, 6).map((artist) => (
                   <Link
                     key={artist.id}
-                    href={`/artist/${artist.id}`}
+                    href={`/app/artist/${artist.id}`}
                     className="group text-center"
                   >
                     <div className="relative aspect-square mb-3 rounded-full overflow-hidden">
@@ -195,7 +195,7 @@ export default function SearchPage() {
                 {results.albums.items.slice(0, 6).map((album) => (
                   <Link
                     key={album.id}
-                    href={`/album/${album.id}`}
+                    href={`/app/album/${album.id}`}
                     className="group"
                   >
                     <div className="relative aspect-square mb-3 rounded-xl overflow-hidden">
@@ -237,7 +237,7 @@ export default function SearchPage() {
                   .map((playlist) => (
                   <Link
                     key={playlist.id}
-                    href={`/playlist/${playlist.id}`}
+                    href={`/app/playlist/${playlist.id}`}
                     className="group"
                   >
                     <div className="relative aspect-square mb-3 rounded-xl overflow-hidden">
@@ -294,7 +294,7 @@ export default function SearchPage() {
 function CategoryCard({ category, colorClass }: { category: SpotifyCategory; colorClass: string }) {
   return (
     <Link
-      href={`/search/category/${category.id}`}
+      href={`/app/search/category/${category.id}`}
       className={cn(
         "relative aspect-square rounded-2xl overflow-hidden group cursor-pointer",
         "bg-gradient-to-br",

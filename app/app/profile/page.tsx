@@ -107,7 +107,7 @@ export default function ProfilePage() {
           </a>
         </Button>
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/settings">
+          <Link href="/app/settings">
             <Settings className="size-5" />
           </Link>
         </Button>
@@ -180,7 +180,7 @@ export default function ProfilePage() {
             {publicPlaylists.map((playlist) => (
               <Link
                 key={playlist.id}
-                href={`/playlist/${playlist.id}`}
+                href={`/app/playlist/${playlist.id}`}
                 className="group"
               >
                 <div className="relative aspect-square overflow-hidden rounded-lg transition-transform group-hover:scale-105">

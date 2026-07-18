@@ -27,7 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={cn( fontMono.variable, "font-sans", geist.variable)} suppressHydrationWarning>
       <body
-        className={`antialiased select-none`}
+        className={`antialiased select-none bg-background`}
       >
         <Providers>
           {children}

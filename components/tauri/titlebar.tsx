@@ -95,9 +95,9 @@ export function Titlebar() {
   };
 
   const navItems = [
-    { icon: Home, label: "Home", path: "/home" },
-    { icon: Search, label: "Discover", path: "/search" },
-    { icon: Library, label: "Collection", path: "/library" },
+    { icon: Home, label: "Home", path: "/app/home" },
+    { icon: Search, label: "Discover", path: "/app/search" },
+    { icon: Library, label: "Collection", path: "/app/library" },
   ];
 
   return (
@@ -204,12 +204,12 @@ export function Titlebar() {
               </div>
               <DropdownMenuSeparator className="bg-white/5" />
               <DropdownMenuItem asChild>
-                <Link href="/profile" className="cursor-pointer text-sm">
+                <Link href="/app/profile" className="cursor-pointer text-sm">
                   Profile
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/settings" className="cursor-pointer text-sm">
+                <Link href="/app/settings" className="cursor-pointer text-sm">
                   Settings
                 </Link>
               </DropdownMenuItem>

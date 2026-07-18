@@ -176,7 +176,7 @@ export default function PlaylistPage({ params }: PageProps) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4">
         <p className="text-muted-foreground">Playlist no encontrada</p>
-        <Button variant="outline" onClick={() => router.push("/home")}>
+        <Button variant="outline" onClick={() => router.push("/app/home")}>
           Volver al inicio
         </Button>
       </div>
@@ -194,7 +194,7 @@ export default function PlaylistPage({ params }: PageProps) {
               Playlist
             </span>
             <Link
-              href={`/profile/${playlist.owner.id}`}
+              href={`/app/profile/${playlist.owner.id}`}
               className="text-xs font-medium uppercase tracking-wider text-muted-foreground bg-card inline-block px-2 py-1 rounded-sm w-fit hover:underline"
             >
               Created by <span className="text-white">{playlist.owner.display_name}</span>
@@ -367,7 +367,7 @@ export default function PlaylistPage({ params }: PageProps) {
                   <div className="flex min-w-0 items-center gap-3">
                     {track.album?.images?.[0]?.url && track.album?.id && (
                       <Link
-                        href={`/album/${track.album.id}`}
+                        href={`/app/album/${track.album.id}`}
                         onClick={(e) => e.stopPropagation()}
                       >
                         <Image
@@ -387,7 +387,7 @@ export default function PlaylistPage({ params }: PageProps) {
                         {track.artists.map((a, i) => (
                           <span key={a.id}>
                             <Link
-                              href={`/artist/${a.id}`}
+                              href={`/app/artist/${a.id}`}
                               onClick={(e) => e.stopPropagation()}
                               className="hover:text-foreground hover:underline transition-colors"
                             >
@@ -403,7 +403,7 @@ export default function PlaylistPage({ params }: PageProps) {
                   {/* Album */}
                   {track.album?.id ? (
                     <Link
-                      href={`/album/${track.album.id}`}
+                      href={`/app/album/${track.album.id}`}
                       onClick={(e) => e.stopPropagation()}
                       className="hidden truncate text-sm text-muted-foreground md:block text-end pr-5 hover:text-foreground hover:underline transition-colors"
                     >

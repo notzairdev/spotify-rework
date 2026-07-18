@@ -80,7 +80,7 @@ export default function HomePage() {
   );
 
   return (
-    <div className="space-y-16 animate-fade-in py-24 px-6 container mx-auto">
+    <div className="space-y-16 animate-fade-in container mx-auto">
       {/* Hero Section */}
       <section className="relative">
         <div className="flex items-end justify-between">
@@ -102,7 +102,7 @@ export default function HomePage() {
           <div className="aspect-4/3 rounded-3xl bg-muted animate-pulse" />
         ) : firstPlaylist ? (
           <Link
-            href={`/playlist/${firstPlaylist.id}`}
+            href={`/app/playlist/${firstPlaylist.id}`}
             className="group relative aspect-4/3 rounded-3xl overflow-hidden cursor-pointer transition-transform hover:scale-[1.02]"
           >
             {firstPlaylist.images[0]?.url ? (
@@ -139,7 +139,7 @@ export default function HomePage() {
             otherPlaylists.map((playlist, i) => (
               <Link
                 key={playlist.id}
-                href={`/playlist/${playlist.id}`}
+                href={`/app/playlist/${playlist.id}`}
                 className="group flex items-center gap-5 p-4 rounded-2xl bg-card/50 hover:bg-card transition-all cursor-pointer"
                 style={{ animationDelay: `${i * 100}ms` }}
               >
@@ -202,7 +202,7 @@ export default function HomePage() {
                   {item.track.artists.map((a, i) => (
                     <span key={a.id}>
                       <Link
-                        href={`/artist/${a.id}`}
+                        href={`/app/artist/${a.id}`}
                         onClick={(e) => e.stopPropagation()}
                         className="hover:text-foreground hover:underline transition-colors"
                       >
@@ -260,7 +260,7 @@ export default function HomePage() {
                   {track.artists.map((a, i) => (
                     <span key={a.id}>
                       <Link
-                        href={`/artist/${a.id}`}
+                        href={`/app/artist/${a.id}`}
                         onClick={(e) => e.stopPropagation()}
                         className="hover:text-foreground hover:underline transition-colors"
                       >
@@ -295,7 +295,7 @@ export default function HomePage() {
             topArtists?.items?.map((artist, i) => (
               <Link
                 key={artist.id}
-                href={`/artist/${artist.id}`}
+                href={`/app/artist/${artist.id}`}
                 className="group shrink-0 text-center cursor-pointer animate-slide-up"
                 style={{ animationDelay: `${i * 50}ms` }}
               >
@@ -401,7 +401,7 @@ export default function HomePage() {
               featured.slice(0, 6).map((playlist, i) => (
                 <Link
                   key={playlist.id}
-                  href={`/playlist/${playlist.id}`}
+                  href={`/app/playlist/${playlist.id}`}
                   className="group cursor-pointer animate-slide-up"
                   style={{ animationDelay: `${i * 50}ms` }}
                 >

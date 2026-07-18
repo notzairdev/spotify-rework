@@ -27,7 +27,7 @@ export function LoginCard() {
       setLoginError(null);
       await login();
       // Login successful - redirect to home
-      router.push("/home");
+      router.push("/app/home");
     } catch (err) {
       setIsLoggingIn(false);
       setLoginError(

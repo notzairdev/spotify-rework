@@ -104,7 +104,7 @@ export function AppGate({ children }: AppGateProps) {
     return (
       <div className="flex h-screen flex-col overflow-hidden">
         <Titlebar />
-        <main className="flex-1 overflow-y-auto scrollbar-hide flex items-center justify-center p-4">
+        <main className="flex-1 overflow-y-auto scrollbar-hide flex items-center justify-center py-4">
           <LoginCard />
         </main>
       </div>

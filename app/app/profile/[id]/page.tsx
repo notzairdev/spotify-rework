@@ -48,7 +48,7 @@ export default function UserProfilePage({ params }: PageProps) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4">
         <p className="text-muted-foreground">User not found</p>
-        <Button variant="outline" onClick={() => router.push("/home")}>
+        <Button variant="outline" onClick={() => router.push("/app/home")}>
           Back to home
         </Button>
       </div>
@@ -106,7 +106,7 @@ export default function UserProfilePage({ params }: PageProps) {
       {isOwnProfile && (
         <div className="mb-8">
           <Button variant="outline" asChild>
-            <Link href="/profile">Ver mi perfil completo</Link>
+            <Link href="/app/profile">Ver mi perfil completo</Link>
           </Button>
         </div>
       )}
@@ -126,7 +126,7 @@ export default function UserProfilePage({ params }: PageProps) {
             {publicPlaylists.map((playlist) => (
               <Link
                 key={playlist.id}
-                href={`/playlist/${playlist.id}`}
+                href={`/app/playlist/${playlist.id}`}
                 className="group"
               >
                 <div className="relative aspect-square overflow-hidden rounded-lg transition-transform group-hover:scale-105">
