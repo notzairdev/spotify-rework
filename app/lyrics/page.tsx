@@ -692,15 +692,25 @@ export default function LyricsPage() {
                         animate={{
                           opacity: lineOpacity,
                           filter: `blur(${blurPx}px)`,
-                          scale: isCurrent ? 1 : 0.97,
                           y: lineOffsetY,
                         }}
                         transition={{
-                          type: "spring",
-                          stiffness: 260,
-                          damping: 28,
-                          mass: 0.85,
-                          delay: cascadeDelay,
+                          opacity: {
+                            type: "spring",
+                            stiffness: 260,
+                            damping: 28,
+                            mass: 0.85,
+                            delay: cascadeDelay,
+                          },
+                          y: {
+                            duration: 0.42,
+                            ease: [0.22, 1, 0.36, 1],
+                          },
+                          filter: {
+                            duration: 0.75,
+                            ease: [0.22, 1, 0.36, 1],
+                            delay: cascadeDelay,
+                          },
                         }}
                         onClick={() => handleLineClick(index)}
                       >
