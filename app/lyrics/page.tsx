@@ -668,6 +668,11 @@ export default function LyricsPage() {
                       : isPast
                         ? Math.max(0.06, 0.35 - (distance - 1) * 0.12)
                         : Math.max(0.06, 0.4 - (distance - 1) * 0.12);
+                  const lineOffsetY = userScrolling
+                    ? 0
+                    : isCurrent
+                      ? 0
+                      : -Math.min(distance * 8, 32);
 
                   // Staggered delay: each line further from current gets progressively more delay
                   const cascadeDelay = isCurrent ? 0 : 0.15 + distance * 0.06;
@@ -688,11 +693,14 @@ export default function LyricsPage() {
                           opacity: lineOpacity,
                           filter: `blur(${blurPx}px)`,
                           scale: isCurrent ? 1 : 0.97,
+                          y: lineOffsetY,
                         }}
                         transition={{
-                          duration: 0.5,
+                          type: "spring",
+                          stiffness: 260,
+                          damping: 28,
+                          mass: 0.85,
                           delay: cascadeDelay,
-                          ease: [0.32, 0.72, 0, 1],
                         }}
                         onClick={() => handleLineClick(index)}
                       >
