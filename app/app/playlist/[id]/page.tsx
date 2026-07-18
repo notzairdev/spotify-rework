@@ -184,7 +184,7 @@ export default function PlaylistPage({ params }: PageProps) {
   }
 
   return (
-    <div className="flex flex-col container mx-auto py-26">
+    <div className="flex flex-col container mx-auto ">
       {/* Header */}
       <div className="flex justify-between gap-6 px-6 pb-6 md:flex-row md:items-end">
         {/* Info */}

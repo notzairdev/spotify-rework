@@ -7,7 +7,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-background text-foreground min-h-screen w-screen px-3 py-16 flex">
+    <div className="bg-background text-foreground min-h-screen w-screen px-3 py-20 flex">
       <div>
         <Playlists/>
       </div>

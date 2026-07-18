@@ -89,7 +89,7 @@ export function PlayerBar() {
   // Next song toast at 15 seconds remaining (not on /lyrics or /)
   useEffect(() => {
     // Don't show toast on lyrics page or login
-    if (pathname === "/lyrics" || pathname === "/" || pathname === "/callback") return;
+    if (pathname === "/lyrics" || pathname === "/" || pathname === "/callback" || pathname === "/app/callback") return;
     if (!state?.track || !state.duration || !state.isPlaying) return;
 
     const remaining = state.duration - (state.position ?? 0);

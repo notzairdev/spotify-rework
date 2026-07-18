@@ -17,8 +17,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+import GradualBlur from '@/components/GradualBlur';
+
 // Paths that should not be in navigation history
-const EXCLUDED_PATHS = ["/", "/callback"];
+const EXCLUDED_PATHS = ["/", "/callback", "/app/callback"];
 
 export function Titlebar() {
   const router = useRouter();
@@ -105,6 +107,17 @@ export function Titlebar() {
       "fixed top-0 left-0 right-0 z-50 select-none transition-all duration-500",
       isFullscreen && "bg-transparent"
     )}>
+      <GradualBlur
+        target="parent"
+        position="top"
+        height="7rem"
+        strength={3.5}
+        divCount={2}
+        curve="bezier"
+        exponential={false}
+        opacity={1}
+        style={{ zIndex: -1 }}
+      />
       <div
         className={cn(
           "h-12 flex items-center px-4 bg-transparent transition-all duration-500",

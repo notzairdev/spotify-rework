@@ -16,7 +16,7 @@ interface AppGateProps {
 }
 
 // Pages where player bar should be hidden
-const HIDE_PLAYER_PATHS = ["/", "/callback", "/island"];
+const HIDE_PLAYER_PATHS = ["/", "/callback", "/app/callback", "/island"];
 
 /**
  * AppGate handles the initial auth verification flow:
@@ -84,7 +84,7 @@ export function AppGate({ children }: AppGateProps) {
 
     if (isAuthenticated && session && pathname === "/" && !hasRedirectedToHome.current) {
       hasRedirectedToHome.current = true;
-      router.replace("/home");
+      router.replace("/app/home");
     }
     // Reset guard when we leave the login page
     if (pathname !== "/") {
@@ -100,7 +100,7 @@ export function AppGate({ children }: AppGateProps) {
 
   // In Tauri context, if not authenticated: render login page directly
   // NO router.replace() here — that was causing the infinite loop
-  if (isTauriContext() && !isAuthenticated && pathname !== "/callback") {
+  if (isTauriContext() && !isAuthenticated && pathname !== "/callback" && pathname !== "/app/callback") {
     return (
       <div className="flex h-screen flex-col overflow-hidden">
         <Titlebar />
