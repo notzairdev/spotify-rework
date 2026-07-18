@@ -105,9 +105,9 @@ export default function HomePage() {
             href={`/app/playlist/${firstPlaylist.id}`}
             className="group relative aspect-4/3 rounded-3xl overflow-hidden cursor-pointer transition-transform hover:scale-[1.02]"
           >
-            {firstPlaylist.images[0]?.url ? (
+            {firstPlaylist.images?.[0]?.url ? (
               <img
-                src={firstPlaylist.images[0].url}
+                src={firstPlaylist.images?.[0]?.url}
                 alt={firstPlaylist.name}
                 className="w-full h-full object-cover"
               />
@@ -143,9 +143,9 @@ export default function HomePage() {
                 className="group flex items-center gap-5 p-4 rounded-2xl bg-card/50 hover:bg-card transition-all cursor-pointer"
                 style={{ animationDelay: `${i * 100}ms` }}
               >
-                {playlist.images[0]?.url ? (
+                {playlist.images?.[0]?.url ? (
                   <img
-                    src={playlist.images[0].url}
+                    src={playlist.images?.[0]?.url}
                     alt={playlist.name}
                     className="w-16 h-16 rounded-xl object-cover"
                   />
@@ -406,9 +406,9 @@ export default function HomePage() {
                   style={{ animationDelay: `${i * 50}ms` }}
                 >
                   <div className="relative aspect-square mb-3 rounded-xl overflow-hidden transition-transform hover:scale-105">
-                    {playlist.images[0]?.url ? (
+                    {playlist.images?.[0]?.url ? (
                       <img
-                        src={playlist.images[0].url}
+                        src={playlist.images?.[0]?.url}
                         alt={playlist.name}
                         className="w-full h-full object-cover"
                       />

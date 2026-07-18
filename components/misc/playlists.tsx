@@ -18,12 +18,12 @@ export default function Playlists ({}: {}) {
     }   
 
     return (
-        <div className="w-fit">
+        <div className="w-fit sticky">
             {data?.items?.map((playlist) => (
                 <Tooltip key={playlist.id}>
                     <TooltipTrigger asChild>
                         <div className="p-2 hover:bg-gray-100 bg-transparent transition-colors rounded-md cursor-pointer flex items-center gap-2">
-                            <img src={playlist.images[0]?.url} alt={playlist.name} className="w-10 h-10" />
+                            <img src={playlist.images?.[0]?.url} alt={playlist.name} className="w-10 h-10" />
                         </div>
                     </TooltipTrigger>
                     <TooltipContent side="right" >
