@@ -495,7 +495,7 @@ export default function LyricsPage() {
 
           <div className="flex justify-center">
             <span className="text-[11px] text-white/35 bg-white/5 rounded-full px-3 py-1 truncate max-w-full">
-              {track.album.name}
+              Listening to: {track.album.name.toUpperCase()}
             </span>
           </div>
         </motion.div>
@@ -675,11 +675,12 @@ export default function LyricsPage() {
                   // lines AWAY from the active line (past → up, future → down).
                   // When active line changes, every line moves in the same
                   // direction and the staggered spring delay creates the wave.
-                  const cascadeY = userScrolling || isCurrent
-                    ? 0
-                    : isPast
-                      ? -Math.min(distance * 8, 35)
-                      : Math.min(distance * 8, 35);
+                  const cascadeY =
+                    userScrolling || isCurrent
+                      ? 0
+                      : isPast
+                        ? -Math.min(distance * 8, 35)
+                        : Math.min(distance * 8, 35);
 
                   return (
                     <div key={index}>

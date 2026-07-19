@@ -1,7 +1,16 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Minus, X, ChevronDown, ChevronLeft, ChevronRight, Home, Search, Library } from "lucide-react";
+import {
+  Minus,
+  X,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Home,
+  Search,
+  Library,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -17,7 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import GradualBlur from '@/components/GradualBlur';
+import GradualBlur from "@/components/GradualBlur";
 
 // Paths that should not be in navigation history
 const EXCLUDED_PATHS = ["/", "/callback", "/app/callback"];
@@ -44,7 +53,7 @@ export function Titlebar() {
   useEffect(() => {
     // Skip excluded paths
     if (EXCLUDED_PATHS.includes(pathname)) return;
-    
+
     // Skip if we're navigating via back/forward buttons
     if (isNavigatingRef.current) {
       isNavigatingRef.current = false;
@@ -55,12 +64,12 @@ export function Titlebar() {
     setHistoryStack((prev) => {
       // If navigating forward from middle of history, truncate
       const truncated = prev.slice(0, currentIndex + 1);
-      
+
       // Don't add duplicate consecutive entries
       if (truncated[truncated.length - 1] === pathname) {
         return prev;
       }
-      
+
       const newStack = [...truncated, pathname];
       // Update index to point to the newly added entry
       // Use setTimeout to batch with React's state updates
@@ -103,10 +112,12 @@ export function Titlebar() {
   ];
 
   return (
-    <header className={cn(
-      "fixed top-0 left-0 right-0 z-50 select-none transition-all duration-500",
-      isFullscreen && "bg-transparent"
-    )}>
+    <header
+      className={cn(
+        "fixed top-0 left-0 right-0 z-50 select-none transition-all duration-500",
+        isFullscreen && "bg-transparent",
+      )}
+    >
       <GradualBlur
         target="parent"
         position="top"
@@ -121,7 +132,7 @@ export function Titlebar() {
       <div
         className={cn(
           "h-12 flex items-center px-4 bg-transparent transition-all duration-500",
-          isFullscreen && "h-10"
+          isFullscreen && "h-10",
         )}
         onMouseDown={drag}
         data-tauri-drag-region
@@ -129,15 +140,22 @@ export function Titlebar() {
         {/* Left: Branding - always visible */}
         <div className="flex items-center gap-4 w-48 transition-all duration-500">
           <div className="flex items-center gap-2">
-            <img src="/svgl/spotify.svg" alt="Spotify Logo" className="opacity-50 w-auto h-5" />
+            <img
+              src="/svgl/spotify.svg"
+              alt="Spotify Logo"
+              className="opacity-75 w-auto h-5"
+            />
           </div>
         </div>
 
         {/* Center: Navigation as minimal tabs - hidden in fullscreen */}
-        <nav className={cn(
-          "flex-1 flex items-center justify-center gap-4 transition-all duration-500",
-          (isFullscreen || pathname === "/") && "opacity-0 pointer-events-none"
-        )}>
+        <nav
+          className={cn(
+            "flex-1 flex items-center justify-center gap-4 transition-all duration-500",
+            (isFullscreen || pathname === "/") &&
+              "opacity-0 pointer-events-none",
+          )}
+        >
           {/* Navigation history buttons */}
           <div className="flex items-center gap-1">
             <Button
@@ -174,7 +192,7 @@ export function Titlebar() {
                     "relative flex items-center gap-2 px-5 py-1.5 rounded-full text-xs font-medium transition-all duration-300",
                     isActive
                       ? "bg-foreground text-background"
-                      : "text-dim hover:text-foreground"
+                      : "text-dim hover:text-foreground",
                   )}
                 >
                   <item.icon className="w-3.5 h-3.5" />
@@ -187,7 +205,6 @@ export function Titlebar() {
 
         {/* Right: User & Controls */}
         <div className="flex items-center gap-3 w-48 justify-end">
-
           {/* User - hidden in fullscreen */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -196,7 +213,7 @@ export function Titlebar() {
                 size="sm"
                 className={cn(
                   "h-8 px-2 rounded-full hover:bg-white/5 gap-1.5 transition-all duration-500",
-                  isFullscreen && "opacity-0 pointer-events-none"
+                  isFullscreen && "opacity-0 pointer-events-none",
                 )}
                 onMouseDown={(e) => e.stopPropagation()}
               >
@@ -208,12 +225,18 @@ export function Titlebar() {
                 <ChevronDown className="w-3 h-3 text-dim" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44 glass border-white/10" onMouseDown={(e) => e.stopPropagation()}>
+            <DropdownMenuContent
+              align="end"
+              className="w-44 glass border-white/10"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
               <div className="px-3 py-2 flex gap-2">
                 <p className="text-sm font-medium">
                   {user?.display_name || "Usuario"}
                 </p>
-                <p className="text-xs text-dim inline-block bg-primary/10 rounded-full uppercase tracking-wider text-primary px-2 py-0.5">Premium</p>
+                <p className="text-xs text-dim inline-block bg-primary/10 rounded-full uppercase tracking-wider text-primary px-2 py-0.5">
+                  Premium
+                </p>
               </div>
               <DropdownMenuSeparator className="bg-white/5" />
               <DropdownMenuItem asChild>
@@ -227,7 +250,10 @@ export function Titlebar() {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-white/5" />
-              <DropdownMenuItem className="text-destructive cursor-pointer text-sm" onSelect={handleLogout}>
+              <DropdownMenuItem
+                className="text-destructive cursor-pointer text-sm"
+                onSelect={handleLogout}
+              >
                 Sign out
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -235,20 +261,24 @@ export function Titlebar() {
 
           {/* Window controls - minimal */}
           <div className="flex items-center">
-            <button
-              className="w-7 h-7 flex items-center justify-center text-dim hover:text-foreground transition-colors"
-              onClick={minimize}
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              <Minus className="w-3 h-3" />
-            </button>
-            <button
-              className="w-7 h-7 flex items-center justify-center text-dim hover:text-destructive transition-colors"
-              onClick={close}
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+            {!isFullscreen && (
+              <>
+                <button
+                  className="w-7 h-7 flex items-center justify-center text-dim hover:text-foreground transition-colors"
+                  onClick={minimize}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <Minus className="w-3 h-3" />
+                </button>
+                <button
+                  className="w-7 h-7 flex items-center justify-center text-dim hover:text-destructive transition-colors"
+                  onClick={close}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
