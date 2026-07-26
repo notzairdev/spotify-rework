@@ -1,233 +1,103 @@
 # Spotify Rework
 
-A modern, redesigned Spotify desktop client built with **Tauri 2**, **Next.js 16**, and **TypeScript**. This project provides a custom UI experience while leveraging the official Spotify Web API and Web Playback SDK.
+Una versión reimaginada del cliente de escritorio de Spotify, construida con **Tauri 2**, **Next.js 16** y **TypeScript**. Ofrece una interfaz moderna y funciones nativas, aprovechando la **Spotify Web API** y la **Web Playback SDK**.
 
-![Beta](https://img.shields.io/badge/status-beta-yellow)
-![Tauri](https://img.shields.io/badge/Tauri-2.x-blue)
-![Next.js](https://img.shields.io/badge/Next.js-16-black)
+![Estado: Beta](https://img.shields.io/badge/status-beta-yellow) ![Tauri](https://img.shields.io/badge/Tauri-2.x-blue) ![Next.js](https://img.shields.io/badge/Next.js-16-black)
 
-## Features
+Resumen rápido
+- Interfaz propia y moderna inspirada en Spotify.
+- Autenticación segura con PKCE y servidor local de callback.
+- Cifrado de sesiones con clave derivada del hardware (AES-256-GCM).
+- Reproducción mediante Web Playback SDK (requiere cuenta Premium).
+- Integración nativa con ventanas y controles de Tauri.
 
-- **Custom UI**: Modern, clean interface inspired by Spotify but with unique design elements
-- **Spotify OAuth**: Secure PKCE authentication flow with local HTTP callback server
-- **HWID Encryption**: Session data encrypted using hardware-derived keys (AES-256-GCM)
-- **Web Playback SDK**: Full playback control for Premium users
-- **Session Persistence**: Auto-refresh tokens on app startup
-- **Native Window Controls**: Custom titlebar with Tauri window management
+Índice
+- Características
+- Requisitos
+- Instalación rápida
+- Configuración de Spotify
+- Variables de entorno
+- Desarrollo
+- Estructura del proyecto
+- Comandos Tauri disponibles
+- Notas importantes
+- Contribuir
+- Licencia y descargo
 
-## Tech Stack
+Características
+- UI personalizada y componentes reutilizables.
+- Flujo de OAuth (PKCE) con servidor local para captura del código.
+- Persistencia de sesión y refresco automático de tokens.
+- Cifrado de sesiones para impedir copia entre máquinas.
+- Soporte para reproducción y control desde la aplicación.
 
-### Frontend
-- **Next.js 16** - React framework with App Router
-- **TypeScript** - Type-safe development
-- **Tailwind CSS 4** - Styling
-- **shadcn/ui** - UI components
-- **Lucide React** - Icons
+Requisitos
+- Node.js 18+
+- Rust 1.70+
+- Tauri CLI (ver requisitos en la documentación oficial)
+- Cuenta de desarrollador de Spotify
 
-### Backend
-- **Tauri 2** - Native desktop app framework
-- **Rust** - Backend logic and security
-- **AES-256-GCM** - Encryption for stored credentials
-
-### APIs
-- **Spotify Web API** - Data fetching
-- **Spotify Web Playback SDK** - Audio playback (Premium required)
-
-## Project Structure
-
-```
-spotify-rework/
-├── app/                    # Next.js App Router pages
-│   ├── page.tsx           # Login page
-│   ├── home/              # Main app after login
-│   ├── callback/          # OAuth callback handler
-│   └── layout.tsx         # Root layout
-├── components/
-│   ├── ui/                # shadcn/ui components
-│   ├── auth/              # Auth-related components
-│   ├── player/            # Playback components
-│   └── tauri/             # Tauri-specific (titlebar, etc.)
-├── hooks/                 # React hooks
-│   ├── use-tauri-command.ts  # Tauri backend communication
-│   └── use-window.ts      # Window controls
-├── lib/
-│   ├── auth/              # Authentication system
-│   │   ├── provider.tsx   # AuthProvider context
-│   │   └── types.ts       # Auth types
-│   ├── spotify/           # Spotify integration
-│   │   ├── client.ts      # API client
-│   │   ├── config.ts      # Scopes and config
-│   │   └── player-provider.tsx  # Playback SDK
-│   ├── tauri/             # Tauri utilities
-│   │   └── cache.ts       # Request caching
-│   ├── env.ts             # Environment detection
-│   └── utils.ts           # Helpers
-├── src-tauri/             # Rust backend
-│   ├── src/
-│   │   ├── main.rs        # Entry point
-│   │   ├── lib.rs         # Tauri commands
-│   │   └── auth/          # Auth module
-│   │       ├── crypto.rs  # HWID encryption
-│   │       ├── spotify.rs # OAuth flow
-│   │       ├── storage.rs # Session persistence
-│   │       └── types.rs   # Rust types
-│   └── Cargo.toml         # Rust dependencies
-└── public/                # Static assets
-```
-
-## Prerequisites
-
-- [Node.js](https://nodejs.org/) 18+
-- [Rust](https://www.rust-lang.org/tools/install) 1.70+
-- [Tauri CLI](https://v2.tauri.app/start/prerequisites/)
-- Spotify Developer Account
-
-## Setup
-
-### 1. Clone and Install
-
+Instalación rápida
 ```bash
 git clone https://github.com/notzairdev/spotify-rework.git
 cd spotify-rework
 npm install
 ```
 
-### 2. Configure Spotify App
+Configuración de la app en Spotify
+1. Abre el [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) y crea una app.
+2. Añade la Redirect URI: `http://127.0.0.1:8888/callback`.
+3. Guarda el `Client ID` y el `Client Secret`.
 
-1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
-2. Create a new app
-3. Add Redirect URI: `http://127.0.0.1:8888/callback`
-4. Note your **Client ID** and **Client Secret**
-
-### 3. Environment Variables
-
-Create `.env.local`:
-
+Variables de entorno
+Crear un archivo `.env.local` en la raíz con:
 ```env
-NEXT_PUBLIC_SPOTIFY_CLIENT_ID=your_client_id_here
-SPOTIFY_CLIENT_SECRET=your_client_secret_here
+NEXT_PUBLIC_SPOTIFY_CLIENT_ID=tu_client_id_aqui
+SPOTIFY_CLIENT_SECRET=tu_client_secret_aqui
 ```
 
-### 4. Run Development
-
+Desarrollo
+Inicia la aplicación en modo desarrollo (frontend + Tauri):
 ```bash
 npm run tauri dev
 ```
 
-## Authentication Flow
-
-1. **App Start** → Check for stored session in `~/.local/share/spotify-rework/auth.enc`
-2. **No Session** → Show login page
-3. **Login Click** → Generate PKCE challenge, open Spotify OAuth in browser
-4. **User Authorizes** → Spotify redirects to `http://127.0.0.1:8888/callback`
-5. **Local Server** → Captures code, exchanges for tokens
-6. **Session Stored** → Encrypted with HWID, saved to disk
-7. **Redirect** → User sent to `/home`
-
-On subsequent launches:
-- Session loaded from encrypted file
-- Tokens refreshed if expired
-- Direct redirect to `/home`
-
-## Tauri Commands
-
-Available commands (invokable from frontend):
-
-| Command | Description |
-|---------|-------------|
-| `get_auth_url` | Generate Spotify OAuth URL |
-| `exchange_code` | Exchange auth code for tokens |
-| `get_session` | Get current session |
-| `refresh_session` | Refresh access token |
-| `logout` | Clear stored session |
-| `get_access_token` | Get current access token |
-
-## Hooks
-
-### `useTauriCommand`
-
-```tsx
-const { data, isLoading, error } = useTauriCommand<Track[]>("get_tracks", {
-  args: { playlistId: "123" },
-  cacheTTL: 60000, // Cache for 1 minute
-});
-```
-
-### `useTauriMutation`
-
-```tsx
-const { mutate, isLoading } = useTauriMutation("save_track", {
-  invalidates: ["get_tracks"], // Invalidate cache after mutation
-});
-
-// Usage
-await mutate({ trackId: "abc" });
-```
-
-### `useAuth`
-
-```tsx
-const { 
-  user, 
-  isAuthenticated, 
-  isPremium, 
-  accessToken,
-  login,
-  logout 
-} = useAuth();
-```
-
-### `useSpotifyPlayer`
-
-```tsx
-const { 
-  isReady,
-  state,
-  play,
-  pause,
-  nextTrack,
-  previousTrack 
-} = useSpotifyPlayer();
-```
-
-## Development Notes
-
-### Spotify Premium
-
-Web Playback SDK requires Spotify Premium. Free users will see an error but can still browse the app.
-
-### Development Mode Restriction
-
-In Spotify's development mode, only registered users can authenticate. Add test users in Dashboard → Settings → User Management.
-
-### HWID Encryption
-
-Session data is encrypted using a key derived from:
-- Machine ID (`/etc/machine-id` on Linux)
-- CPU info
-- OS details
-
-This prevents session files from being copied between machines.
-
-## Building for Production
-
+Compilación para producción
 ```bash
 npm run tauri build
 ```
+Los binarios resultantes se encontrarán en `src-tauri/target/release/`.
 
-Output binaries will be in `src-tauri/target/release/`.
+Estructura principal (resumen)
+```
+app/           # Rutas y páginas de Next.js (App Router)
+components/    # Componentes React (ui, auth, player, tauri)
+hooks/         # Hooks personalizados
+lib/           # Lógica de negocio (auth, spotify, tauri utils)
+public/        # Assets estáticos
+src-tauri/     # Código Rust y configuración de Tauri
+```
 
-## Contributing
+Comandos Tauri disponibles
+- `get_auth_url` — Genera la URL de autorización de Spotify.
+- `exchange_code` — Intercambia el código por tokens.
+- `get_session` — Obtiene la sesión actual.
+- `refresh_session` — Refresca el token de acceso.
+- `logout` — Elimina la sesión almacenada.
+- `get_access_token` — Obtiene el token de acceso vigente.
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+Notas importantes
+- Web Playback SDK requiere cuenta Spotify Premium para controlar reproducción.
+- En modo desarrollo de Spotify, solo usuarios registrados en la app pueden iniciar sesión.
+- El cifrado de sesión se basa en datos de hardware; esto evita copiar sesiones entre equipos.
 
-## License
+Contribuir
+1. Haz fork del repositorio.
+2. Crea una rama de trabajo: `feature/mi-cambio`.
+3. Haz tus cambios y abre un Pull Request.
 
-MIT License - See [LICENSE](LICENSE) for details.
+Licencia
+MIT — ver el archivo [LICENSE](LICENSE).
 
-## Disclaimer
-
-This is an unofficial project and is not affiliated with, endorsed by, or connected to Spotify AB. Use at your own risk.
+Descargo de responsabilidad
+Este proyecto es no oficial y no está afiliado ni respaldado por Spotify AB. Úsalo bajo tu propia responsabilidad.
