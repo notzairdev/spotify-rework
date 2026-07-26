@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { emit, listen } from "@tauri-apps/api/event";
 import { devError, devLog, isTauriContext } from "@/lib/env";
 import { useAuth } from "@/lib/auth";
 
@@ -372,7 +373,7 @@ export function SpotifyPlayerProvider({
         }
 
         const currentTrack = sdkState.track_window.current_track;
-        setState((prev) => ({
+        const newState = {
           isPlaying: !sdkState.paused,
           isPaused: sdkState.paused,
           duration: sdkState.duration,
@@ -392,15 +393,22 @@ export function SpotifyPlayerProvider({
                 },
               }
             : null,
-          volume: prev?.volume ?? initialVolume,
           shuffle: sdkState.shuffle,
-          repeatMode:
-            sdkState.repeat_mode === 0
-              ? "off"
-              : sdkState.repeat_mode === 1
+          repeatMode: (sdkState.repeat_mode === 0
+            ? "off"
+            : sdkState.repeat_mode === 1
               ? "context"
-              : "track",
-        }));
+              : "track") as "off" | "context" | "track",
+        };
+        
+        setState((prev) => {
+           const nextState = { ...newState, volume: prev?.volume ?? initialVolume };
+           if (isTauriContext()) {
+              emit("spotify-player-state", nextState).catch(console.error);
+              localStorage.setItem("spotify-rework-island-state", JSON.stringify(nextState));
+           }
+           return nextState;
+        });
       });
 
       // Connect to Spotify
@@ -434,6 +442,28 @@ export function SpotifyPlayerProvider({
     setError(null);
     setRetryCount((c) => c + 1);
   }, []);
+
+  // Set up listeners for remote commands (e.g. from Island)
+  useEffect(() => {
+    if (!isTauriContext() || !player) return;
+
+    let unlistens: (() => void)[] = [];
+    const setupListeners = async () => {
+      try {
+        const u1 = await listen("island-play-pause", () => player.togglePlay());
+        const u2 = await listen("island-next", () => player.nextTrack());
+        const u3 = await listen("island-prev", () => player.previousTrack());
+        unlistens.push(u1, u2, u3);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    setupListeners();
+
+    return () => {
+      unlistens.forEach((u) => u());
+    };
+  }, [player]);
 
   // Update position periodically while playing
   useEffect(() => {

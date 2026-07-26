@@ -23,6 +23,21 @@
         "decorations": false,
         "transparent": false,
         "useHttpsScheme": true
+      },
+      {
+        "label": "island",
+        "title": "Spotify Dynamic Island",
+        "url": "/island",
+        "width": 300,
+        "height": 80,
+        "fullscreen": false,
+        "decorations": false,
+        "resizable": false,
+        "transparent": true,
+        "visible": false,
+        "skipTaskbar": true,
+        "alwaysOnTop": true,
+        "useHttpsScheme": true
       }
     ],
     "withGlobalTauri": true,

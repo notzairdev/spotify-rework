@@ -164,9 +164,9 @@ export function TrackContextMenu({
                 onClick={() => handleAddToPlaylist(playlist.id, playlist.name)}
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  {playlist.images[0]?.url ? (
+                  {playlist.images?.[0]?.url ? (
                     <img
-                      src={playlist.images[0].url}
+                      src={playlist.images?.[0]?.url}
                       alt=""
                       className="w-6 h-6 rounded object-cover"
                     />
@@ -202,7 +202,7 @@ export function TrackContextMenu({
         {/* Go to artist */}
         {artistId && (
           <ContextMenuItem asChild>
-            <Link href={`/artist/${artistId}`}>
+            <Link href={`/app/artist/${artistId}`}>
               <User className="mr-2 h-4 w-4" />
               Go to Artist
             </Link>
@@ -212,7 +212,7 @@ export function TrackContextMenu({
         {/* Go to album */}
         {albumId && (
           <ContextMenuItem asChild>
-            <Link href={`/album/${albumId}`}>
+            <Link href={`/app/album/${albumId}`}>
               <Disc3 className="mr-2 h-4 w-4" />
               Go to Album
             </Link>

@@ -177,7 +177,7 @@ export default function LibraryPage() {
                 filteredPlaylists.map((playlist) => (
                   <Link
                     key={playlist.id}
-                    href={`/playlist/${playlist.id}`}
+                    href={`/app/playlist/${playlist.id}`}
                     className="group"
                   >
                     <div className="relative aspect-square overflow-hidden rounded-lg">
@@ -215,7 +215,7 @@ export default function LibraryPage() {
             filteredAlbums.map(({ album }) => (
               <Link
                 key={album.id}
-                href={`/album/${album.id}`}
+                href={`/app/album/${album.id}`}
                 className="group"
               >
                 <div className="relative aspect-square overflow-hidden rounded-lg">
@@ -255,7 +255,7 @@ export default function LibraryPage() {
             filteredArtists.map((artist) => (
               <Link
                 key={artist.id}
-                href={`/artist/${artist.id}`}
+                href={`/app/artist/${artist.id}`}
                 className="group text-center"
               >
                 <div className="relative mx-auto aspect-square overflow-hidden rounded-full">
@@ -300,7 +300,7 @@ export default function LibraryPage() {
                 filteredPlaylists.map((playlist) => (
                   <Link
                     key={playlist.id}
-                    href={`/playlist/${playlist.id}`}
+                    href={`/app/playlist/${playlist.id}`}
                     className="flex items-center gap-4 p-3 transition-colors hover:bg-muted/50"
                   >
                     <div className="relative size-14 shrink-0 overflow-hidden rounded-lg">
@@ -331,7 +331,7 @@ export default function LibraryPage() {
             filteredAlbums.map(({ album }) => (
               <Link
                 key={album.id}
-                href={`/album/${album.id}`}
+                href={`/app/album/${album.id}`}
                 className="flex items-center gap-4 p-3 transition-colors hover:bg-muted/50"
               >
                 <div className="relative size-14 shrink-0 overflow-hidden rounded-lg">
@@ -362,7 +362,7 @@ export default function LibraryPage() {
             filteredArtists.map((artist) => (
               <Link
                 key={artist.id}
-                href={`/artist/${artist.id}`}
+                href={`/app/artist/${artist.id}`}
                 className="flex items-center gap-4 p-3 transition-colors hover:bg-muted/50"
               >
                 <div className="relative size-14 shrink-0 overflow-hidden rounded-full">

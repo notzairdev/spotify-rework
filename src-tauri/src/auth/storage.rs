@@ -85,7 +85,5 @@ pub fn delete_auth_state() -> Result<(), AuthError> {
 
 /// Check if auth state exists
 pub fn has_auth_state() -> bool {
-    get_auth_file_path()
-        .map(|p| p.exists())
-        .unwrap_or(false)
+    get_auth_file_path().map(|p| p.exists()).unwrap_or(false)
 }

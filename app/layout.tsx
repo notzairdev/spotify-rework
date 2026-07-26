@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Inter } from "next/font/google";
+import { Geist_Mono, Geist } from "next/font/google";
 import "./globals.css";
 
 import { Providers } from "@/components/wrapped/providers";
 import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
-const inter = Inter({subsets:['latin'],variable:'--font-sans'});
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const fontMono = Geist_Mono({
   subsets: ["latin"],
@@ -25,9 +25,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cn(inter.variable, fontMono.variable, inter.variable)} suppressHydrationWarning>
+    <html lang="en" className={cn( fontMono.variable, "font-sans", geist.variable)} suppressHydrationWarning>
       <body
-        className={`antialiased select-none`}
+        className={`antialiased select-none bg-background`}
       >
         <Providers>
           {children}

@@ -59,7 +59,7 @@ export default function CategoryPage({ params }: CategoryPageProps) {
           {playlists.map((playlist) => (
             <Link
               key={playlist.id}
-              href={`/playlist/${playlist.id}`}
+              href={`/app/playlist/${playlist.id}`}
               className="group"
             >
               <div className="relative aspect-square mb-3 rounded-xl overflow-hidden">

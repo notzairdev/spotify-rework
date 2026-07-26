@@ -495,7 +495,7 @@ export default function LyricsPage() {
 
           <div className="flex justify-center">
             <span className="text-[11px] text-white/35 bg-white/5 rounded-full px-3 py-1 truncate max-w-full">
-              {track.album.name}
+              Listening to: {track.album.name.toUpperCase()}
             </span>
           </div>
         </motion.div>
@@ -668,9 +668,19 @@ export default function LyricsPage() {
                       : isPast
                         ? Math.max(0.06, 0.35 - (distance - 1) * 0.12)
                         : Math.max(0.06, 0.4 - (distance - 1) * 0.12);
-
                   // Staggered delay: each line further from current gets progressively more delay
                   const cascadeDelay = isCurrent ? 0 : 0.15 + distance * 0.06;
+
+                  // Apple Music–style cascade: direction-aware y-offset pushes
+                  // lines AWAY from the active line (past → up, future → down).
+                  // When active line changes, every line moves in the same
+                  // direction and the staggered spring delay creates the wave.
+                  const cascadeY =
+                    userScrolling || isCurrent
+                      ? 0
+                      : isPast
+                        ? -Math.min(distance * 8, 35)
+                        : Math.min(distance * 8, 35);
 
                   return (
                     <div key={index}>
@@ -687,12 +697,28 @@ export default function LyricsPage() {
                         animate={{
                           opacity: lineOpacity,
                           filter: `blur(${blurPx}px)`,
-                          scale: isCurrent ? 1 : 0.97,
+                          y: cascadeY,
                         }}
                         transition={{
-                          duration: 0.5,
-                          delay: cascadeDelay,
-                          ease: [0.32, 0.72, 0, 1],
+                          opacity: {
+                            type: "spring",
+                            stiffness: 260,
+                            damping: 28,
+                            mass: 0.85,
+                            delay: cascadeDelay,
+                          },
+                          y: {
+                            type: "spring",
+                            stiffness: 220,
+                            damping: 26,
+                            mass: 0.9,
+                            delay: cascadeDelay,
+                          },
+                          filter: {
+                            duration: 0.75,
+                            ease: [0.22, 1, 0.36, 1],
+                            delay: cascadeDelay,
+                          },
                         }}
                         onClick={() => handleLineClick(index)}
                       >

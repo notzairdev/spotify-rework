@@ -34,7 +34,7 @@ export default function CallbackPage() {
         setStatus("success");
         // Redirect to home after successful login
         setTimeout(() => {
-          router.push("/home");
+          router.push("/app/home");
         }, 1500);
       })
       .catch(() => {

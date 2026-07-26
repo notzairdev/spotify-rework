@@ -8,6 +8,7 @@ import { LyricsProvider } from '@/lib/lrclib';
 import { FullscreenProvider } from '@/lib/fullscreen';
 import { AppGate } from '@/components/app-gate';
 import { ContextMenuBlocker } from '@/components/context-menu-blocker';
+import { TooltipProvider } from '../ui/tooltip';
 
 interface ProvidersProps {
   children: ReactNode;
@@ -21,9 +22,11 @@ export const Providers: FC<ProvidersProps> = ({ children }) => {
         <FullscreenProvider>
           <SpotifyPlayerProvider>
             <LyricsProvider>
-              <AppGate>
-                {children}
-              </AppGate>
+              <TooltipProvider>
+                <AppGate>
+                  {children}
+                </AppGate>
+              </TooltipProvider>
             </LyricsProvider>
           </SpotifyPlayerProvider>
         </FullscreenProvider>

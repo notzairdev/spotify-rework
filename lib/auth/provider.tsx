@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -22,13 +23,28 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Module-level cache to prevent repeated get_session calls across remounts
+let authInitPromise: Promise<AuthSession | null> | null = null;
+let authInitResult: { session: AuthSession | null; error: unknown } | null = null;
+
+/** Clear the auth init cache (called on logout) */
+export function clearAuthCache() {
+  authInitPromise = null;
+  authInitResult = null;
+}
+
 export function AuthProvider({ children }: AuthProviderProps) {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const hasInitializedRef = useRef(false);
 
   // Initialize - check for existing session on mount
   useEffect(() => {
+    // Prevent double-initialization (React StrictMode or remounts)
+    if (hasInitializedRef.current) return;
+    hasInitializedRef.current = true;
+
     if (!isTauriContext()) {
       devLog("Not in Tauri context, skipping auth initialization");
       setIsLoading(false);
@@ -37,8 +53,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     const initAuth = async () => {
       try {
-        devLog("Initializing auth...");
-        const existingSession = await invoke<AuthSession | null>("get_session");
+        // Reuse cached result if AuthProvider remounted
+        if (authInitResult) {
+          devLog("Using cached auth init result");
+          if (authInitResult.session) {
+            setSession(authInitResult.session);
+          }
+          if (authInitResult.error && authInitResult.error !== "Not authenticated") {
+            setError(authInitResult.error instanceof Error ? authInitResult.error : new Error(String(authInitResult.error)));
+          }
+          setIsLoading(false);
+          return;
+        }
+
+        // Deduplicate concurrent calls
+        if (!authInitPromise) {
+          devLog("Initializing auth...");
+          authInitPromise = invoke<AuthSession | null>("get_session");
+        } else {
+          devLog("Reusing in-flight auth init promise");
+        }
+
+        const existingSession = await authInitPromise;
+        authInitResult = { session: existingSession, error: null };
 
         if (existingSession) {
           devLog("Found existing session for:", existingSession.user.display_name);
@@ -48,6 +85,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       } catch (err) {
         devError("Failed to initialize auth:", err);
+        authInitResult = { session: null, error: err };
         // Don't set error for "not authenticated" - that's expected
         if (err !== "Not authenticated") {
           setError(err instanceof Error ? err : new Error(String(err)));
@@ -73,7 +111,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // This opens a browser, handles OAuth, and returns the session
       const newSession = await invoke<AuthSession>("start_auth_flow");
-      
+
       devLog("Login successful:", newSession.user.display_name);
       setSession(newSession);
     } catch (err) {
@@ -135,6 +173,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = useCallback(async () => {
     if (!isTauriContext()) {
       setSession(null);
+      clearAuthCache();
       return;
     }
 
@@ -143,14 +182,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await invoke("logout");
       setSession(null);
       setError(null);
+      clearAuthCache();
       devLog("Logged out successfully");
     } catch (err) {
       devError("Logout failed:", err);
       // Still clear session on frontend even if backend fails
       setSession(null);
+      clearAuthCache();
       throw err;
     }
   }, []);
+
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -213,12 +255,12 @@ export function useAuthCallback() {
         code,
         returnedState: state,
       });
-      
+
       // Update the auth context with the new session
       if (updateSession) {
         updateSession(session);
       }
-      
+
       return session;
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));

@@ -93,25 +93,25 @@ impl From<&AuthState> for AuthSession {
 pub enum AuthError {
     #[error("Not authenticated")]
     NotAuthenticated,
-    
+
     #[error("Token expired")]
     TokenExpired,
-    
+
     #[error("Failed to refresh token: {0}")]
     RefreshFailed(String),
-    
+
     #[error("Spotify API error: {0}")]
     SpotifyError(String),
-    
+
     #[error("Encryption error: {0}")]
     EncryptionError(String),
-    
+
     #[error("Storage error: {0}")]
     StorageError(String),
-    
+
     #[error("Invalid PKCE state")]
     InvalidPkceState,
-    
+
     #[error("HTTP error: {0}")]
     HttpError(String),
 }

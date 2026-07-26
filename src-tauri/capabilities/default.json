@@ -3,10 +3,19 @@
   "identifier": "default",
   "description": "enables the default permissions",
   "windows": [
-    "main"
+    "main",
+    "island"
   ],
   "permissions": [
     "core:default",
+    "core:event:allow-listen",
+    "core:event:allow-emit",
+    "core:webview:allow-internal-toggle-devtools",
+    "core:window:allow-current-monitor",
+    "core:window:allow-get-all-windows",
+    "core:window:allow-set-focus",
+    "core:window:allow-set-position",
+    "core:window:allow-set-shadow",
     "core:window:allow-close",
     "core:window:allow-destroy",
     "core:window:allow-minimize",
