@@ -59,6 +59,10 @@ export interface SpotifyAlbum {
   external_urls: {
     spotify: string;
   };
+  copyrights?: {
+    text: string;
+    type: "C" | "P";
+  }[];
 }
 
 export interface SpotifyTrack {

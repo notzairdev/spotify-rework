@@ -143,7 +143,7 @@ export function Titlebar() {
             <img
               src="/svgl/spotify.svg"
               alt="Spotify Logo"
-              className="opacity-75 w-auto h-5"
+              className="opacity-25 w-auto h-5 z-9999"
             />
           </div>
         </div>

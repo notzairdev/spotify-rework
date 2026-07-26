@@ -45,6 +45,13 @@ function formatDuration(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
+function formatCopyrightText(copyright: { text: string; type: "C" | "P" }) {
+  const text = copyright.text.replace(/^\s*\((?:C|P)\)\s*/i, "");
+  const label = copyright.type === "P" ? "Performance" : "Copyright";
+
+  return `${label}: ${text}`;
+}
+
 interface PageProps {
   params: Promise<{ id: string }>;
 }
@@ -165,6 +172,7 @@ export default function AlbumPage({ params }: PageProps) {
 
   const albumImage = album.images?.[0]?.url;
   const releaseYear = album.release_date?.split("-")[0];
+  const copyrights = album.copyrights ?? [];
 
   return (
     <div className="flex flex-col container mx-auto pb-36">
@@ -373,11 +381,20 @@ export default function AlbumPage({ params }: PageProps) {
       )}
 
       {/* Footer Credits */}
-      <div className="mt-12 px-6">
-        <p className="text-xs text-muted-foreground uppercase tracking-widest">
-          ℗ {releaseYear} {album.artists?.[0]?.name}
-        </p>
-      </div>
+      {copyrights.length > 0 && (
+        <div className="mt-12 px-6">
+          <div className="flex flex-col gap-1">
+            {copyrights.map((copyright) => (
+              <p
+                key={`${copyright.type}-${copyright.text}`}
+                className="text-xs uppercase tracking-widest text-muted-foreground"
+              >
+                {formatCopyrightText(copyright)}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
