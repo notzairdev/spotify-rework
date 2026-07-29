@@ -204,7 +204,7 @@ export function PlayerBar() {
 
       <div
         className={cn(
-          "bg-card/85 backdrop-blur-2xl border border-white/10 rounded-[28px] shadow-2xl shadow-black/40",
+            "backdrop-blur-2xl border border-white/10 rounded-4xl shadow-2xl shadow-black/40",
         )}
       >
         <div className="flex items-center px-5 py-3 gap-4">

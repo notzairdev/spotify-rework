@@ -18,7 +18,7 @@ export default function Playlists ({}: {}) {
     }   
 
     return (
-        <div className="w-fit fixed">
+        <div className="w-fit fixed" style={{ zIndex: 1000 }}>
             {data?.items?.map((playlist) => (
                 <Tooltip key={playlist.id}>
                     <TooltipTrigger asChild>

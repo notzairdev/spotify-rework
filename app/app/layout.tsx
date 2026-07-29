@@ -9,9 +9,9 @@ export default function RootLayout({
   return (
     <div className="bg-background text-foreground min-h-screen w-screen px-3 flex">
       <div className="py-20">
-        <Playlists/>
+          {/* <Playlists/> */}
       </div>
-      <div className="flex-1 mx-4 rounded-lg overflow-hidden h-full">
+      <div className="flex-1 mx-4 rounded-lg overflow-visible h-full">
         {children}
       </div>
       <div>
