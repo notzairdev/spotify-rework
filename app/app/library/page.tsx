@@ -87,7 +87,7 @@ export default function LibraryPage() {
   }, [artists, searchQuery]);
 
   return (
-    <div className="py-26 mt-10 container mx-auto">
+    <div className="container mx-auto mt-10 px-6 py-26">
       {/* Header */}
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-6xl font-bold">My Library</h1>

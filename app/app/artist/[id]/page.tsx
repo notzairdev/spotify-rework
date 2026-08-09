@@ -343,7 +343,7 @@ export default function ArtistPage({ params }: PageProps) {
               </div>
             </DialogHeader>
 
-            <div className="scrollbar-thin overflow-y-auto px-7 py-6">
+            <div className="scrollbar-thin overflow-y-auto px-7 pb-6">
               {(biography.genre || biography.style || biography.mood) && (
                 <div className="mb-6 flex flex-wrap gap-2">
                   {[biography.genre, biography.style, biography.mood]

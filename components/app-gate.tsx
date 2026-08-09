@@ -129,13 +129,16 @@ export function AppGate({ children }: AppGateProps) {
   }
 
   const showPlayerBar = isAuthenticated && !HIDE_PLAYER_PATHS.includes(pathname) && pathname !== "/lyrics";
+  const usesAppWorkspace = pathname.startsWith("/app/") && pathname !== "/app/callback";
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       <Titlebar />
-      <PageViewport>
-        {children}
-      </PageViewport>
+      {usesAppWorkspace ? (
+        <div className="min-h-0 flex-1">{children}</div>
+      ) : (
+        <PageViewport>{children}</PageViewport>
+      )}
       <div
         className={`shrink-0 transition-opacity duration-300 ${showPlayerBar ? "opacity-100" : "opacity-0 pointer-events-none"}`}
       >

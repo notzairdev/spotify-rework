@@ -7,11 +7,11 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useSpotifyPlayer } from "@/lib/spotify";
 import {
-  getLyrics,
   parseSyncedLyrics,
   type LRCLibLyrics,
   type SyncedLyricLine,
 } from "./api";
+import { loadLyricsForTrack } from "./cache";
 
 interface UseLyricsResult {
   lyrics: SyncedLyricLine[];
@@ -56,7 +56,7 @@ export function useLyrics(): UseLyricsResult {
     let cancelled = false;
     const fetchLyrics = async () => {
       try {
-        const result = await getLyrics({
+        const result = await loadLyricsForTrack(trackId, {
           trackName,
           artistName,
           albumName,

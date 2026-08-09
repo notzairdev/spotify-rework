@@ -11,12 +11,15 @@ import {
 } from "react";
 import { useSpotifyPlayer } from "@/lib/spotify";
 import {
-  getCachedLyrics,
-  getLyrics,
   parseSyncedLyrics,
   type LRCLibLyrics,
   type SyncedLyricLine,
 } from "./api";
+import {
+  getCachedLyricsForTrack,
+  hasCachedLyrics,
+  loadLyricsForTrack,
+} from "./cache";
 
 // Threshold in seconds for detecting an interlude (must be a significant gap)
 const INTERLUDE_THRESHOLD = 8;
@@ -56,9 +59,6 @@ interface LyricsContextValue {
 
 const LyricsContext = createContext<LyricsContextValue | null>(null);
 
-// In-memory cache for lyrics by track ID
-const lyricsCache = new Map<string, LRCLibLyrics | null>();
-
 interface LyricsProviderProps {
   children: ReactNode;
 }
@@ -87,11 +87,17 @@ export function LyricsProvider({ children }: LyricsProviderProps) {
   useEffect(() => {
     // If no track, clear everything
     if (!trackId || !trackName || !albumName) {
-      setLyricsData(null);
-      setError(null);
-      setIsLoading(false);
-      setCurrentTrackId(null);
-      return;
+      let cancelled = false;
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setLyricsData(null);
+        setError(null);
+        setIsLoading(false);
+        setCurrentTrackId(null);
+      });
+      return () => {
+        cancelled = true;
+      };
     }
 
     // Skip if same track (already loaded or loading)
@@ -102,26 +108,37 @@ export function LyricsProvider({ children }: LyricsProviderProps) {
     // Increment fetch ID to invalidate any in-flight requests
     const thisFetchId = ++fetchIdRef.current;
 
-    // Immediately clear old lyrics and set loading for new track
-    setCurrentTrackId(trackId);
-    setLyricsData(null);
-    setError(null);
-    setIsLoading(true);
-
     // Check cache first (synchronous)
-    if (lyricsCache.has(trackId)) {
-      const cached = lyricsCache.get(trackId);
-      setLyricsData(cached ?? null);
-      setError(cached ? null : "No lyrics found for this track");
-      setIsLoading(false);
-      return;
+    if (hasCachedLyrics(trackId)) {
+      const cached = getCachedLyricsForTrack(trackId);
+      let cancelled = false;
+
+      queueMicrotask(() => {
+        if (cancelled || fetchIdRef.current !== thisFetchId) return;
+        setCurrentTrackId(trackId);
+        setLyricsData(cached ?? null);
+        setError(cached ? null : "No lyrics found for this track");
+        setIsLoading(false);
+      });
+
+      return () => {
+        cancelled = true;
+      };
     }
+
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled || fetchIdRef.current !== thisFetchId) return;
+      setCurrentTrackId(trackId);
+      setLyricsData(null);
+      setError(null);
+      setIsLoading(true);
+    });
 
     // Fetch lyrics asynchronously
     const fetchLyrics = async () => {
       try {
-        // Try cached endpoint first (faster)
-        let result = await getCachedLyrics({
+        const result = await loadLyricsForTrack(trackId, {
           trackName,
           artistName,
           albumName,
@@ -132,24 +149,6 @@ export function LyricsProvider({ children }: LyricsProviderProps) {
         if (fetchIdRef.current !== thisFetchId) {
           return; // Stale request, discard
         }
-
-        // If not cached, try full endpoint
-        if (!result) {
-          result = await getLyrics({
-            trackName,
-            artistName,
-            albumName,
-            duration: durationSeconds,
-          });
-        }
-
-        // Check again after second request
-        if (fetchIdRef.current !== thisFetchId) {
-          return; // Stale request, discard
-        }
-
-        // Cache the result (even if null)
-        lyricsCache.set(trackId, result);
 
         if (result) {
           setLyricsData(result);
@@ -165,7 +164,6 @@ export function LyricsProvider({ children }: LyricsProviderProps) {
         }
         setError(e instanceof Error ? e.message : "Failed to fetch lyrics");
         setLyricsData(null);
-        lyricsCache.set(trackId, null);
       } finally {
         // Only update loading state if this is still the current request
         if (fetchIdRef.current === thisFetchId) {
@@ -175,6 +173,9 @@ export function LyricsProvider({ children }: LyricsProviderProps) {
     };
 
     void fetchLyrics();
+    return () => {
+      cancelled = true;
+    };
   }, [trackId, trackName, artistName, albumName, durationSeconds, currentTrackId]);
 
   // Parse synced lyrics and filter out empty lines

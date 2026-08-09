@@ -19,6 +19,7 @@ fn is_allowed_url(url: &Url) -> bool {
         Some("api.reccobeats.com") => url.path().starts_with("/v1/"),
         Some("api.listenbrainz.org") => url.path().starts_with("/1/"),
         Some("www.theaudiodb.com") => url.path().starts_with("/api/v1/json/"),
+        Some("artwork.m8tec.top") => url.path() == "/api/v1/artwork/search",
         Some("musicbrainz.org") => url.path().starts_with("/ws/2/"),
         _ => false,
     }

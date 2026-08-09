@@ -1,6 +1,7 @@
 import {
+  getArtistTopTracks,
+  getRecommendations,
   getTrack,
-  getTracks,
   searchAlbums,
   type SpotifyAlbum,
   type SpotifyTrack,
@@ -32,9 +33,31 @@ export interface TrackCredits {
   writtenBy: string[];
 }
 
+export interface AudioDbTrackInfo {
+  trackId: string;
+  trackName: string;
+  artistName: string;
+  albumName: string | null;
+  description: string | null;
+  genre: string | null;
+  mood: string | null;
+  style: string | null;
+  theme: string | null;
+  thumbnailUrl: string | null;
+  musicVideoUrl: string | null;
+  musicVideoDirector: string | null;
+  musicVideoCompany: string | null;
+  sourceUrl: string;
+}
+
 export interface TasteRecommendation {
   track: SpotifyTrack;
   reason: "taste";
+}
+
+export interface SpotifyTrackSuggestions {
+  tracks: SpotifyTrack[];
+  source: "spotify-recommendations" | "artist-top-tracks";
 }
 
 export interface ListenBrainzTrend {
@@ -81,6 +104,27 @@ interface AudioDbArtist {
 
 interface AudioDbSearchResponse {
   artists?: AudioDbArtist[] | null;
+}
+
+interface AudioDbTrack {
+  idTrack: string;
+  strTrack: string;
+  strArtist: string;
+  strAlbum?: string | null;
+  strDescriptionEN?: string | null;
+  strDescriptionES?: string | null;
+  strGenre?: string | null;
+  strMood?: string | null;
+  strStyle?: string | null;
+  strTheme?: string | null;
+  strTrackThumb?: string | null;
+  strMusicVid?: string | null;
+  strMusicVidDirector?: string | null;
+  strMusicVidCompany?: string | null;
+}
+
+interface AudioDbTrackSearchResponse {
+  track?: AudioDbTrack[] | null;
 }
 
 interface MusicBrainzArtist {
@@ -161,12 +205,13 @@ export async function getTrackCredits(
   if (!recording) return null;
 
   const relations = recording.relations ?? [];
-  const workIds = [...new Set(
-    relations
-      .filter((relation) => relation["target-type"] === "work")
-      .map((relation) => relation.work?.id)
-      .filter((id): id is string => Boolean(id)),
-  )].slice(0, 3);
+  const workIdSet = new Set<string>();
+  for (const relation of relations) {
+    const workId = relation["target-type"] === "work" ? relation.work?.id : null;
+    if (workId) workIdSet.add(workId);
+    if (workIdSet.size === 3) break;
+  }
+  const workIds = [...workIdSet];
   const workResults = await Promise.allSettled(
     workIds.map((workId) => {
       const workParams = new URLSearchParams({ inc: "artist-rels", fmt: "json" });
@@ -179,12 +224,12 @@ export async function getTrackCredits(
     result.status === "fulfilled" ? result.value.relations ?? [] : []
   );
   const groups = buildCreditGroups(recording, workRelations);
-  const writtenBy = uniqueNames(
-    workRelations
-      .filter((relation) => ["writer", "composer", "lyricist"].includes(relation.type))
-      .map((relation) => relation.artist?.name)
-      .filter((name): name is string => Boolean(name)),
-  );
+  const writtenBy = uniqueNames(workRelations.flatMap((relation) => {
+    const isWritingCredit = relation.type === "writer"
+      || relation.type === "composer"
+      || relation.type === "lyricist";
+    return isWritingCredit && relation.artist?.name ? [relation.artist.name] : [];
+  }));
 
   if (groups.length === 0) return null;
   return {
@@ -194,6 +239,40 @@ export async function getTrackCredits(
     sourceUrl: `https://musicbrainz.org/recording/${recording.id}`,
     groups,
     writtenBy,
+  };
+}
+
+export async function getAudioDbTrackInfo(
+  artistName: string,
+  trackName: string,
+): Promise<AudioDbTrackInfo | null> {
+  const params = new URLSearchParams({ s: artistName, t: trackName });
+  const response = await fetchMusicData<AudioDbTrackSearchResponse>(
+    `https://www.theaudiodb.com/api/v1/json/123/searchtrack.php?${params}`,
+    ONE_DAY,
+  );
+  const matches = response.track ?? [];
+  const match = matches.find((candidate) =>
+    normalize(candidate.strArtist) === normalize(artistName)
+    && normalize(candidate.strTrack) === normalize(trackName)
+  ) ?? matches[0];
+
+  if (!match) return null;
+  return {
+    trackId: match.idTrack,
+    trackName: match.strTrack,
+    artistName: match.strArtist,
+    albumName: cleanOptional(match.strAlbum),
+    description: cleanOptional(match.strDescriptionES) ?? cleanOptional(match.strDescriptionEN),
+    genre: cleanOptional(match.strGenre),
+    mood: cleanOptional(match.strMood),
+    style: cleanOptional(match.strStyle),
+    theme: cleanOptional(match.strTheme),
+    thumbnailUrl: cleanOptional(match.strTrackThumb),
+    musicVideoUrl: cleanOptional(match.strMusicVid),
+    musicVideoDirector: cleanOptional(match.strMusicVidDirector),
+    musicVideoCompany: cleanOptional(match.strMusicVidCompany),
+    sourceUrl: `https://www.theaudiodb.com/track/${match.idTrack}`,
   };
 }
 
@@ -213,14 +292,59 @@ export async function getTasteRecommendations(
     6 * 60 * 60 * 1000,
   );
 
-  const spotifyIds = (response.content ?? [])
-    .map((item) => extractSpotifyId(item.href, "track"))
-    .filter((id): id is string => Boolean(id))
-    .filter((id) => !seeds.includes(id));
+  const seedSet = new Set(seeds);
+  const spotifyIdSet = new Set<string>();
+  for (const item of response.content ?? []) {
+    const spotifyId = extractSpotifyId(item.href, "track");
+    if (spotifyId && !seedSet.has(spotifyId)) spotifyIdSet.add(spotifyId);
+  }
+  const spotifyIds = [...spotifyIdSet].slice(0, 10);
 
   if (spotifyIds.length === 0) return [];
-  const { tracks } = await getTracks([...new Set(spotifyIds)].slice(0, 20));
-  return tracks.filter(Boolean).map((track) => ({ track, reason: "taste" }));
+  const trackResults = await Promise.allSettled(
+    spotifyIds.map((id) => getTrack(id)),
+  );
+  return trackResults.flatMap((result) =>
+    result.status === "fulfilled"
+      ? [{ track: result.value, reason: "taste" as const }]
+      : []
+  );
+}
+
+export async function getSpotifyTrackSuggestions(
+  trackId: string,
+  size: number = 8,
+): Promise<SpotifyTrackSuggestions> {
+  const limit = Math.min(Math.max(size, 1), 20);
+  const currentTrack = await getTrack(trackId);
+  const primaryArtistId = currentTrack.artists[0]?.id;
+
+  try {
+    const response = await getRecommendations({
+      seedTracks: [trackId],
+      seedArtists: primaryArtistId ? [primaryArtistId] : undefined,
+      limit: Math.min(limit + 2, 20),
+    });
+    const tracks = uniqueSpotifyTracks(response.tracks, trackId).slice(0, limit);
+    if (tracks.length > 0) {
+      return { tracks, source: "spotify-recommendations" };
+    }
+  } catch (error) {
+    console.info("Spotify recommendations are unavailable; using artist top tracks.", error);
+  }
+
+  if (!primaryArtistId) return { tracks: [], source: "artist-top-tracks" };
+
+  try {
+    const response = await getArtistTopTracks(primaryArtistId);
+    return {
+      tracks: uniqueSpotifyTracks(response.tracks, trackId).slice(0, limit),
+      source: "artist-top-tracks",
+    };
+  } catch (error) {
+    console.warn("Spotify artist suggestions failed:", error);
+    return { tracks: [], source: "artist-top-tracks" };
+  }
 }
 
 export async function getListenBrainzTrends(
@@ -302,9 +426,11 @@ function chooseRecording(
       let score = 0;
       if (normalize(recording.title) === normalize(track.name)) score += 6;
 
-      const creditedArtists = (recording["artist-credit"] ?? [])
-        .map((credit) => normalize(credit.artist?.name ?? credit.name));
-      if (track.artists.some((artist) => creditedArtists.includes(normalize(artist.name)))) {
+      const creditedArtists = new Set(
+        (recording["artist-credit"] ?? [])
+          .map((credit) => normalize(credit.artist?.name ?? credit.name)),
+      );
+      if (track.artists.some((artist) => creditedArtists.has(normalize(artist.name)))) {
         score += 4;
       }
 
@@ -403,6 +529,15 @@ function uniqueNames(names: string[]): string[] {
     const key = normalize(name);
     if (!key || seen.has(key)) return false;
     seen.add(key);
+    return true;
+  });
+}
+
+function uniqueSpotifyTracks(tracks: SpotifyTrack[], excludedTrackId: string): SpotifyTrack[] {
+  const seen = new Set<string>([excludedTrackId]);
+  return tracks.filter((track) => {
+    if (!track.id || seen.has(track.id)) return false;
+    seen.add(track.id);
     return true;
   });
 }

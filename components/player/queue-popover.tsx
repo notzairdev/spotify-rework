@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { AudioLines, ListMusic, Music, Repeat1 } from "lucide-react";
 import {
@@ -16,9 +16,10 @@ import { cn } from "@/lib/utils";
 interface QueuePopoverProps {
   className?: string;
   triggerClassName?: string;
+  children?: ReactNode;
 }
 
-export function QueuePopover({ className, triggerClassName }: QueuePopoverProps) {
+export function QueuePopover({ className, triggerClassName, children }: QueuePopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [hasOpened, setHasOpened] = useState(false);
   const { state } = useSpotifyPlayer();
@@ -74,7 +75,7 @@ export function QueuePopover({ className, triggerClassName }: QueuePopoverProps)
             triggerClassName
           )}
         >
-          <ListMusic className="size-4" />
+          {children ?? <ListMusic className="size-4" />}
         </button>
       </PopoverTrigger>
 

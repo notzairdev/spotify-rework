@@ -131,9 +131,6 @@ export default function HomePage() {
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
             {getGreeting()}{firstName ? `, ${firstName}` : ""}
           </h1>
-          <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
-            Pick up where you left off, revisit your rotation, or find something released this week.
-          </p>
         </div>
 
         <div className="flex flex-wrap gap-2">

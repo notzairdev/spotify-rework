@@ -12,6 +12,7 @@ import {
   Library,
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useWindow } from "@/hooks";
@@ -26,8 +27,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-import GradualBlur from "@/components/GradualBlur";
 
 // Paths that should not be in navigation history
 const EXCLUDED_PATHS = ["/", "/callback", "/app/callback"];
@@ -134,17 +133,6 @@ export function Titlebar() {
         isFullscreen && "bg-transparent",
       )}
     >
-      <GradualBlur
-        target="parent"
-        position="top"
-        height="7rem"
-        strength={3.5}
-        divCount={2}
-        curve="bezier"
-        exponential={false}
-        opacity={1}
-        style={{ zIndex: -1 }}
-      />
       <div
         className={cn(
           "h-12 flex items-center px-4 bg-transparent transition-[height] duration-500",
@@ -156,10 +144,12 @@ export function Titlebar() {
         {/* Left: Branding - always visible */}
         <div className="flex items-center gap-4 w-48 transition-opacity duration-500">
           <div className="flex items-center gap-2">
-            <img
+            <Image
               src="/svgl/spotify.svg"
               alt="Spotify Logo"
-              className="opacity-25 w-auto h-5 z-9999"
+              width={67}
+              height={20}
+              className="h-5 opacity-25 z-9999"
             />
           </div>
         </div>
