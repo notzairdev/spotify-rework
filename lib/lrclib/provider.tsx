@@ -69,17 +69,24 @@ export function LyricsProvider({ children }: LyricsProviderProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentTrackId, setCurrentTrackId] = useState<string | null>(null);
+  const track = state?.track;
+  const trackId = track?.id ?? null;
+  const trackName = track?.name;
+  const artistName = track?.artists[0] ?? "";
+  const albumName = track?.album.name;
+  const durationSeconds = state?.duration
+    ? Math.round(state.duration / 1000)
+    : undefined;
+  const playbackPosition = state?.position ?? 0;
+  const syncedLyrics = lyricsData?.syncedLyrics;
   
   // Use ref to track the current fetch request and cancel stale ones
   const fetchIdRef = useRef(0);
 
   // Fetch and cache lyrics when track changes
   useEffect(() => {
-    const track = state?.track;
-    const trackId = track?.id ?? null;
-
     // If no track, clear everything
-    if (!track || !trackId) {
+    if (!trackId || !trackName || !albumName) {
       setLyricsData(null);
       setError(null);
       setIsLoading(false);
@@ -115,10 +122,10 @@ export function LyricsProvider({ children }: LyricsProviderProps) {
       try {
         // Try cached endpoint first (faster)
         let result = await getCachedLyrics({
-          trackName: track.name,
-          artistName: track.artists[0] || "",
-          albumName: track.album.name,
-          duration: state.duration ? Math.round(state.duration / 1000) : undefined,
+          trackName,
+          artistName,
+          albumName,
+          duration: durationSeconds,
         });
 
         // Check if this request is still valid
@@ -129,10 +136,10 @@ export function LyricsProvider({ children }: LyricsProviderProps) {
         // If not cached, try full endpoint
         if (!result) {
           result = await getLyrics({
-            trackName: track.name,
-            artistName: track.artists[0] || "",
-            albumName: track.album.name,
-            duration: state.duration ? Math.round(state.duration / 1000) : undefined,
+            trackName,
+            artistName,
+            albumName,
+            duration: durationSeconds,
           });
         }
 
@@ -167,20 +174,20 @@ export function LyricsProvider({ children }: LyricsProviderProps) {
       }
     };
 
-    fetchLyrics();
-  }, [state?.track?.id, state?.track?.name, state?.track?.artists, state?.track?.album.name, state?.duration, currentTrackId]);
+    void fetchLyrics();
+  }, [trackId, trackName, artistName, albumName, durationSeconds, currentTrackId]);
 
   // Parse synced lyrics and filter out empty lines
   const lyrics = useMemo(() => {
-    if (!lyricsData?.syncedLyrics) return [];
-    const parsed = parseSyncedLyrics(lyricsData.syncedLyrics);
+    if (!syncedLyrics) return [];
+    const parsed = parseSyncedLyrics(syncedLyrics);
     // Filter out empty lines - they shouldn't be displayed
     return parsed.filter(line => line.text.trim().length > 0);
-  }, [lyricsData?.syncedLyrics]);
+  }, [syncedLyrics]);
 
   // Calculate current line index and detect interludes
   const { currentLineIndex, isInterlude, isBeforeFirstLyric, interludeAfterIndex, interludeProgress, positionSeconds } = useMemo(() => {
-    const posSeconds = (state?.position ?? 0) / 1000;
+    const posSeconds = playbackPosition / 1000;
     const positionWithLookahead = posSeconds + 0.3; // 300ms lookahead for current line
 
     if (!lyrics.length) {
@@ -255,12 +262,12 @@ export function LyricsProvider({ children }: LyricsProviderProps) {
       interludeProgress: progress,
       positionSeconds: posSeconds
     };
-  }, [lyrics, state?.position]);
+  }, [lyrics, playbackPosition]);
 
   const hasLyrics = lyrics.length > 0 || !!lyricsData?.plainLyrics;
   
   // Only show as available if we're done loading AND have lyrics AND it's for the current track
-  const lyricsAvailable = !isLoading && hasLyrics && !lyricsData?.instrumental && currentTrackId === state?.track?.id;
+  const lyricsAvailable = !isLoading && hasLyrics && !lyricsData?.instrumental && currentTrackId === trackId;
 
   const value = useMemo<LyricsContextValue>(
     () => ({

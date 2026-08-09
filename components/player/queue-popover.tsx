@@ -87,9 +87,6 @@ export function QueuePopover({ className, triggerClassName }: QueuePopoverProps)
         sideOffset={14}
       >
         <div className="flex items-center gap-3 px-4 py-3.5">
-          <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <ListMusic className="size-4" />
-          </div>
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-semibold">Playback queue</h3>
             <p className="text-[11px] text-muted-foreground">
@@ -146,7 +143,7 @@ export function QueuePopover({ className, triggerClassName }: QueuePopoverProps)
                           alt={queue.currently_playing.album.name}
                           width={52}
                           height={52}
-                          className="size-13 shrink-0 rounded-xl object-cover shadow-lg"
+                          className="shrink-0 rounded-xl object-cover shadow-lg"
                         />
                       ) : (
                         <div className="flex size-13 shrink-0 items-center justify-center rounded-xl bg-muted">
@@ -203,7 +200,7 @@ export function QueuePopover({ className, triggerClassName }: QueuePopoverProps)
                             alt={track.album.name}
                             width={40}
                             height={40}
-                            className="size-10 shrink-0 rounded-lg object-cover"
+                            className="shrink-0 rounded-lg object-cover"
                           />
                         ) : (
                           <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">

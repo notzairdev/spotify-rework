@@ -4,7 +4,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSpotifyPlayer } from "@/lib/spotify";
 import { saveTracks, removeTracks, checkSavedTracks } from "@/lib/spotify/api";
 
@@ -22,30 +22,34 @@ export function useTrackLike(trackIdParam?: string): UseTrackLikeResult {
   const { state } = useSpotifyPlayer();
   const [isLiked, setIsLiked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [lastCheckedTrackId, setLastCheckedTrackId] = useState<string | null>(null);
+  const lastCheckedTrackIdRef = useRef<string | null>(null);
 
   // Use provided trackId or fallback to current playing track
   const trackId = trackIdParam ?? state?.track?.id;
 
   // Check if current track is liked when it changes
   useEffect(() => {
-    if (!trackId || trackId === lastCheckedTrackId) {
+    if (!trackId || trackId === lastCheckedTrackIdRef.current) {
       return;
     }
 
-    setLastCheckedTrackId(trackId);
+    lastCheckedTrackIdRef.current = trackId;
+    let cancelled = false;
 
     const checkLiked = async () => {
       try {
         const [liked] = await checkSavedTracks([trackId]);
-        setIsLiked(liked);
+        if (!cancelled) setIsLiked(liked);
       } catch (error) {
         console.error("Failed to check if track is liked:", error);
       }
     };
 
-    checkLiked();
-  }, [trackId, lastCheckedTrackId]);
+    void checkLiked();
+    return () => {
+      cancelled = true;
+    };
+  }, [trackId]);
 
   const toggleLike = useCallback(async () => {
     if (!trackId || isLoading) return;

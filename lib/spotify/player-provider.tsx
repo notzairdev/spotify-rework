@@ -82,7 +82,8 @@ export interface SpotifyPlayerContextValue {
 const SpotifyPlayerContext = createContext<SpotifyPlayerContextValue | null>(null);
 
 const SPOTIFY_PLAYER_SDK_URL = "https://sdk.scdn.co/spotify-player.js";
-const VOLUME_STORAGE_KEY = "spotify-rework-volume";
+const VOLUME_STORAGE_KEY = "spotify-rework-volume:v1";
+const ISLAND_STATE_STORAGE_KEY = "spotify-rework-island-state:v1";
 
 /**
  * Get saved volume from localStorage
@@ -138,6 +139,17 @@ async function checkEMESupport(): Promise<boolean> {
   }
 }
 
+function disposeSpotifyPlayer(player: Spotify.Player) {
+  player.removeListener("initialization_error");
+  player.removeListener("authentication_error");
+  player.removeListener("account_error");
+  player.removeListener("playback_error");
+  player.removeListener("ready");
+  player.removeListener("not_ready");
+  player.removeListener("player_state_changed");
+  player.disconnect();
+}
+
 export function SpotifyPlayerProvider({
   children,
   playerName = "Spotify Rework",
@@ -157,6 +169,7 @@ export function SpotifyPlayerProvider({
   const initialVolume = useMemo(() => getSavedVolume(), []);
 
   const playerRef = useRef<Spotify.Player | null>(null);
+  const stateRef = useRef<PlaybackState | null>(null);
   const accessTokenRef = useRef<string | null>(null);
   const hasAutoTransferredRef = useRef(false);
   const repeatRequestInFlightRef = useRef(false);
@@ -165,6 +178,10 @@ export function SpotifyPlayerProvider({
   useEffect(() => {
     accessTokenRef.current = accessToken;
   }, [accessToken]);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   // Check EME support on mount
   useEffect(() => {
@@ -191,7 +208,13 @@ export function SpotifyPlayerProvider({
     // Don't load if already loaded or loading
     if (window.Spotify || document.querySelector(`script[src="${SPOTIFY_PLAYER_SDK_URL}"]`)) {
       if (window.Spotify) {
-        setSdkLoaded(true);
+        let cancelled = false;
+        queueMicrotask(() => {
+          if (!cancelled) setSdkLoaded(true);
+        });
+        return () => {
+          cancelled = true;
+        };
       }
       return;
     }
@@ -217,36 +240,6 @@ export function SpotifyPlayerProvider({
       // Don't remove script on cleanup - it should persist
     };
   }, [emeSupported]);
-
-  // Initialize player when SDK is loaded and user is authenticated with Premium
-  useEffect(() => {
-    if (!sdkLoaded || !isAuthenticated) {
-      return;
-    }
-
-    if (!isPremium) {
-      devLog("User does not have Premium, skipping player initialization");
-      setError("Spotify Premium required for playback");
-      return;
-    }
-
-    if (!accessToken) {
-      devLog("No access token available, waiting...");
-      return;
-    }
-
-    initializePlayer();
-
-    return () => {
-      if (playerRef.current) {
-        devLog("Disconnecting player...");
-        playerRef.current.disconnect();
-        playerRef.current = null;
-        setPlayer(null);
-        setIsReady(false);
-      }
-    };
-  }, [sdkLoaded, isAuthenticated, isPremium, accessToken, retryCount]);
 
   const getAccessToken = useCallback(async (): Promise<string> => {
     // Try fresh token from Tauri backend first
@@ -285,7 +278,7 @@ export function SpotifyPlayerProvider({
 
     try {
       devLog("Initializing Spotify player...");
-      const token = await getAccessToken();
+      await getAccessToken();
       devLog("Got access token for player initialization");
 
       const newPlayer = new window.Spotify.Player({
@@ -402,40 +395,101 @@ export function SpotifyPlayerProvider({
               : "context") as "off" | "context" | "track",
         };
         
-        setState((prev) => {
-           const nextState = { ...newState, volume: prev?.volume ?? initialVolume };
-           if (isTauriContext()) {
-              emit("spotify-player-state", nextState).catch(console.error);
-              localStorage.setItem("spotify-rework-island-state", JSON.stringify(nextState));
-           }
-           return nextState;
-        });
+        const nextState = {
+          ...newState,
+          volume: stateRef.current?.volume ?? initialVolume,
+        };
+        stateRef.current = nextState;
+        setState(nextState);
+
+        if (isTauriContext()) {
+          void emit("spotify-player-state", nextState).catch(console.error);
+          localStorage.setItem(ISLAND_STATE_STORAGE_KEY, JSON.stringify(nextState));
+        }
       });
 
       // Connect to Spotify
       devLog("Connecting player to Spotify...");
+      playerRef.current = newPlayer;
       const connected = await newPlayer.connect();
+
+      // Initialization may have been cancelled while connect() was pending.
+      if (playerRef.current !== newPlayer) {
+        disposeSpotifyPlayer(newPlayer);
+        return;
+      }
       
       if (connected) {
         devLog("Player connected successfully");
-        playerRef.current = newPlayer;
         setPlayer(newPlayer);
       } else {
+        disposeSpotifyPlayer(newPlayer);
+        playerRef.current = null;
         devError("Failed to connect player");
         setError("Failed to connect to Spotify. Please try again.");
         setIsLoading(false);
       }
     } catch (e) {
+      if (playerRef.current) {
+        disposeSpotifyPlayer(playerRef.current);
+        playerRef.current = null;
+      }
       devError("Failed to initialize player:", e);
       setError(e instanceof Error ? e.message : "Failed to initialize player");
       setIsLoading(false);
     }
   }, [playerName, initialVolume, getAccessToken]);
 
+  // Initialize player when SDK is loaded and user is authenticated with Premium
+  useEffect(() => {
+    if (!sdkLoaded || !isAuthenticated) {
+      return;
+    }
+
+    if (!isPremium) {
+      devLog("User does not have Premium, skipping player initialization");
+      let cancelled = false;
+      queueMicrotask(() => {
+        if (!cancelled) setError("Spotify Premium required for playback");
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (!accessToken) {
+      devLog("No access token available, waiting...");
+      return;
+    }
+
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void initializePlayer();
+    });
+
+    return () => {
+      cancelled = true;
+      if (playerRef.current) {
+        devLog("Disconnecting player...");
+        disposeSpotifyPlayer(playerRef.current);
+        playerRef.current = null;
+        setPlayer(null);
+        setIsReady(false);
+      }
+    };
+  }, [
+    sdkLoaded,
+    isAuthenticated,
+    isPremium,
+    accessToken,
+    retryCount,
+    initializePlayer,
+  ]);
+
   // Retry initialization
   const retry = useCallback(() => {
     if (playerRef.current) {
-      playerRef.current.disconnect();
+      disposeSpotifyPlayer(playerRef.current);
       playerRef.current = null;
     }
     setPlayer(null);
@@ -449,19 +503,28 @@ export function SpotifyPlayerProvider({
     if (!isTauriContext() || !player) return;
 
     const unlistens: (() => void)[] = [];
+    let disposed = false;
     const setupListeners = async () => {
       try {
-        const u1 = await listen("island-play-pause", () => player.togglePlay());
-        const u2 = await listen("island-next", () => player.nextTrack());
-        const u3 = await listen("island-prev", () => player.previousTrack());
-        unlistens.push(u1, u2, u3);
+        const listeners = await Promise.all([
+          listen("island-play-pause", () => player.togglePlay()),
+          listen("island-next", () => player.nextTrack()),
+          listen("island-prev", () => player.previousTrack()),
+        ]);
+
+        if (disposed) {
+          listeners.forEach((unlisten) => unlisten());
+        } else {
+          unlistens.push(...listeners);
+        }
       } catch (err) {
         console.error(err);
       }
     };
-    setupListeners();
+    void setupListeners();
 
     return () => {
+      disposed = true;
       unlistens.forEach((u) => u());
     };
   }, [player]);
@@ -483,7 +546,7 @@ export function SpotifyPlayerProvider({
               : null
           );
         }
-      } catch (e) {
+      } catch {
         // Ignore errors during position polling
       }
     }, 250); // Update every 250ms for smoother lyrics sync
@@ -492,6 +555,10 @@ export function SpotifyPlayerProvider({
   }, [player, state?.isPlaying]);
 
   // Playback controls
+  const playbackPosition = state?.position ?? 0;
+  const shuffleEnabled = state?.shuffle ?? false;
+  const currentRepeatMode = state?.repeatMode ?? "off";
+
   const play = useCallback(
     async (uris?: string[], contextUri?: string, offset?: number) => {
       if (!deviceId) {
@@ -534,12 +601,12 @@ export function SpotifyPlayerProvider({
 
   const previousTrack = useCallback(async () => {
     // If position > 3 seconds, restart the current track instead
-    if (state?.position && state.position > 3000) {
+    if (playbackPosition > 3000) {
       await player?.seek(0);
     } else {
       await player?.previousTrack();
     }
-  }, [player, state?.position]);
+  }, [player, playbackPosition]);
 
   const seek = useCallback(
     async (positionMs: number) => {
@@ -551,9 +618,12 @@ export function SpotifyPlayerProvider({
   const setVolume = useCallback(
     async (volume: number) => {
       await player?.setVolume(volume);
-      // Update local state immediately
-      setState((prev) => prev ? { ...prev, volume } : null);
-      // Persist to localStorage
+      const currentState = stateRef.current;
+      if (currentState) {
+        const nextState = { ...currentState, volume };
+        stateRef.current = nextState;
+        setState(nextState);
+      }
       saveVolume(volume);
     },
     [player]
@@ -582,14 +652,14 @@ export function SpotifyPlayerProvider({
   const toggleShuffle = useCallback(async () => {
     if (!deviceId) return;
     const token = await getAccessToken();
-    const newState = !state?.shuffle;
+    const newState = !shuffleEnabled;
     await fetch(`https://api.spotify.com/v1/me/player/shuffle?state=${newState}&device_id=${deviceId}`, {
       method: "PUT",
       headers: { Authorization: `Bearer ${token}` },
     });
     // Update local state optimistically
     setState(prev => prev ? { ...prev, shuffle: newState } : null);
-  }, [deviceId, getAccessToken, state?.shuffle]);
+  }, [deviceId, getAccessToken, shuffleEnabled]);
 
   const cycleRepeatMode = useCallback(async () => {
     if (!deviceId || repeatRequestInFlightRef.current) return;
@@ -599,7 +669,7 @@ export function SpotifyPlayerProvider({
       const token = await getAccessToken();
       // Cycle: off -> context -> track -> off
       const modes: Array<"off" | "context" | "track"> = ["off", "context", "track"];
-      const currentIndex = modes.indexOf(state?.repeatMode ?? "off");
+      const currentIndex = modes.indexOf(currentRepeatMode);
       const nextMode = modes[(currentIndex + 1) % modes.length];
       const params = new URLSearchParams({
         state: nextMode,
@@ -624,7 +694,7 @@ export function SpotifyPlayerProvider({
     } finally {
       repeatRequestInFlightRef.current = false;
     }
-  }, [deviceId, getAccessToken, state?.repeatMode]);
+  }, [deviceId, getAccessToken, currentRepeatMode]);
 
   const value = useMemo<SpotifyPlayerContextValue>(
     () => ({

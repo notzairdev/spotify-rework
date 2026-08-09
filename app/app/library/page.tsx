@@ -21,6 +21,23 @@ import { startPlayback } from "@/lib/spotify/api";
 type Filter = "all" | "playlists" | "albums" | "artists";
 type ViewMode = "grid" | "list";
 
+const LIBRARY_FILTERS: { key: Filter; label: string }[] = [
+  { key: "all", label: "Todo" },
+  { key: "playlists", label: "Playlists" },
+  { key: "albums", label: "Álbumes" },
+  { key: "artists", label: "Artistas" },
+];
+
+async function playContext(event: React.MouseEvent, uri: string) {
+  event.preventDefault();
+  event.stopPropagation();
+  try {
+    await startPlayback({ contextUri: uri });
+  } catch (error) {
+    console.error("Failed to play:", error);
+  }
+}
+
 export default function LibraryPage() {
   const [filter, setFilter] = usePreservedPageState<Filter>("filter", "all");
   const [viewMode, setViewMode] = usePreservedPageState<ViewMode>("view-mode", "grid");
@@ -31,9 +48,12 @@ export default function LibraryPage() {
   const { data: albumsData, isLoading: albumsLoading } = useSavedAlbums();
   const { data: artistsData, isLoading: artistsLoading } = useFollowedArtists();
 
-  const playlists = playlistsData?.items ?? [];
-  const albums = albumsData?.items ?? [];
-  const artists = artistsData?.artists?.items ?? [];
+  const playlists = useMemo(() => playlistsData?.items ?? [], [playlistsData?.items]);
+  const albums = useMemo(() => albumsData?.items ?? [], [albumsData?.items]);
+  const artists = useMemo(
+    () => artistsData?.artists?.items ?? [],
+    [artistsData?.artists?.items],
+  );
 
   const isLoading = playlistsLoading || albumsLoading || artistsLoading;
 
@@ -66,36 +86,6 @@ export default function LibraryPage() {
     return artists.filter((a) => a.name.toLowerCase().includes(q));
   }, [artists, searchQuery]);
 
-  const filters: { key: Filter; label: string }[] = [
-    { key: "all", label: "Todo" },
-    { key: "playlists", label: "Playlists" },
-    { key: "albums", label: "Álbumes" },
-    { key: "artists", label: "Artistas" },
-  ];
-
-  const handlePlayPlaylist = async (
-    e: React.MouseEvent,
-    uri: string
-  ) => {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      await startPlayback({ contextUri: uri });
-    } catch (err) {
-      console.error("Failed to play:", err);
-    }
-  };
-
-  const handlePlayAlbum = async (e: React.MouseEvent, uri: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      await startPlayback({ contextUri: uri });
-    } catch (err) {
-      console.error("Failed to play:", err);
-    }
-  };
-
   return (
     <div className="py-26 mt-10 container mx-auto">
       {/* Header */}
@@ -108,7 +98,7 @@ export default function LibraryPage() {
 
       {/* Filters */}
       <div className="mb-6 flex items-center gap-2 overflow-x-auto pb-2">
-        {filters.map((f) => (
+        {LIBRARY_FILTERS.map((f) => (
           <Button
             key={f.key}
             variant={filter === f.key ? "default" : "outline"}
@@ -166,7 +156,7 @@ export default function LibraryPage() {
             <SortablePlaylists
               playlists={filteredPlaylists}
               viewMode="grid"
-              onPlay={handlePlayPlaylist}
+              onPlay={playContext}
             />
           )}
 
@@ -187,6 +177,7 @@ export default function LibraryPage() {
                           src={playlist.images[0].url}
                           alt={playlist.name}
                           fill
+                          sizes="(min-width: 1024px) 12.5vw, (min-width: 640px) 20vw, 50vw"
                           className="object-cover transition-transform group-hover:scale-105"
                         />
                       ) : (
@@ -198,7 +189,7 @@ export default function LibraryPage() {
                         <Button
                           size="icon"
                           className="size-12 rounded-full"
-                          onClick={(e) => handlePlayPlaylist(e, playlist.uri)}
+                          onClick={(e) => void playContext(e, playlist.uri)}
                         >
                           <Play className="size-5 fill-current" />
                         </Button>
@@ -225,6 +216,7 @@ export default function LibraryPage() {
                       src={album.images[0].url}
                       alt={album.name}
                       fill
+                      sizes="(min-width: 1024px) 12.5vw, (min-width: 640px) 20vw, 50vw"
                       className="object-cover transition-transform group-hover:scale-105"
                     />
                   ) : (
@@ -237,7 +229,7 @@ export default function LibraryPage() {
                       size="icon"
                       className="size-12 rounded-full"
                       onClick={(e) =>
-                        handlePlayAlbum(e, `spotify:album:${album.id}`)
+                        void playContext(e, `spotify:album:${album.id}`)
                       }
                     >
                       <Play className="size-5 fill-current" />
@@ -265,6 +257,7 @@ export default function LibraryPage() {
                       src={artist.images[0].url}
                       alt={artist.name}
                       fill
+                      sizes="(min-width: 1024px) 12.5vw, (min-width: 640px) 20vw, 50vw"
                       className="object-cover transition-transform group-hover:scale-105"
                     />
                   ) : (
@@ -289,7 +282,7 @@ export default function LibraryPage() {
             <SortablePlaylists
               playlists={filteredPlaylists}
               viewMode="list"
-              onPlay={handlePlayPlaylist}
+              onPlay={playContext}
             />
           )}
 
@@ -310,6 +303,7 @@ export default function LibraryPage() {
                           src={playlist.images[0].url}
                           alt={playlist.name}
                           fill
+                          sizes="56px"
                           className="object-cover"
                         />
                       ) : (
@@ -341,6 +335,7 @@ export default function LibraryPage() {
                       src={album.images[0].url}
                       alt={album.name}
                       fill
+                      sizes="56px"
                       className="object-cover"
                     />
                   ) : (
@@ -372,6 +367,7 @@ export default function LibraryPage() {
                       src={artist.images[0].url}
                       alt={artist.name}
                       fill
+                      sizes="56px"
                       className="object-cover"
                     />
                   ) : (

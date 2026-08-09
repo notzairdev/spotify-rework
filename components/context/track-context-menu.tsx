@@ -38,6 +38,7 @@ import {
   saveTracks,
   removeTracks,
   checkSavedTracks,
+  invalidateSpotifyQueryCache,
 } from "@/lib/spotify";
 import { useTrackCredits } from "@/lib/music-data";
 import { toast } from "sonner";
@@ -126,6 +127,7 @@ export function TrackContextMenu({
   const handleAddToPlaylist = async (playlistId: string, playlistName: string) => {
     try {
       await addTracksToPlaylist(playlistId, [trackUri]);
+      invalidateSpotifyQueryCache(`playlist:${playlistId}`);
       toast.success(`Added to ${playlistName}`, {
         description: trackName,
       });
@@ -147,6 +149,7 @@ export function TrackContextMenu({
         setIsLiked(true);
         toast.success("Added to Liked Songs", { description: trackName });
       }
+      invalidateSpotifyQueryCache("user:me:saved-tracks");
     } catch {
       toast.error("Failed to update");
     } finally {

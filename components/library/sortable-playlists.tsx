@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Play, GripVertical } from "lucide-react";
@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { SpotifyPlaylist } from "@/lib/spotify/api";
 
-const STORAGE_KEY = "playlist-order";
+const STORAGE_KEY = "playlist-order:v1";
 
 interface SortablePlaylistsProps {
   playlists: SpotifyPlaylist[];
@@ -36,8 +36,12 @@ interface SortablePlaylistsProps {
 
 function getStoredOrder(): string[] {
   if (typeof window === "undefined") return [];
-  const stored = localStorage.getItem(STORAGE_KEY);
-  return stored ? JSON.parse(stored) : [];
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
 }
 
 function saveOrder(order: string[]) {
@@ -45,7 +49,7 @@ function saveOrder(order: string[]) {
 }
 
 export function SortablePlaylists({ playlists, viewMode, onPlay }: SortablePlaylistsProps) {
-  const [orderedPlaylists, setOrderedPlaylists] = useState<SpotifyPlaylist[]>(playlists);
+  const [playlistOrder, setPlaylistOrder] = useState<string[]>(getStoredOrder);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -58,18 +62,12 @@ export function SortablePlaylists({ playlists, viewMode, onPlay }: SortablePlayl
     })
   );
 
-  // Apply stored order when playlists change
-  useEffect(() => {
-    const storedOrder = getStoredOrder();
-    if (storedOrder.length === 0) {
-      setOrderedPlaylists(playlists);
-      return;
-    }
+  const orderedPlaylists = useMemo(() => {
+    if (playlistOrder.length === 0) return playlists;
 
-    // Sort playlists based on stored order
-    const sorted = [...playlists].sort((a, b) => {
-      const aIndex = storedOrder.indexOf(a.id);
-      const bIndex = storedOrder.indexOf(b.id);
+    return [...playlists].sort((a, b) => {
+      const aIndex = playlistOrder.indexOf(a.id);
+      const bIndex = playlistOrder.indexOf(b.id);
       
       // If neither is in stored order, maintain original order
       if (aIndex === -1 && bIndex === -1) return 0;
@@ -80,25 +78,19 @@ export function SortablePlaylists({ playlists, viewMode, onPlay }: SortablePlayl
       // Both are in stored order, sort by their positions
       return aIndex - bIndex;
     });
-
-    setOrderedPlaylists(sorted);
-  }, [playlists]);
+  }, [playlists, playlistOrder]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
-      setOrderedPlaylists((items) => {
-        const oldIndex = items.findIndex((i) => i.id === active.id);
-        const newIndex = items.findIndex((i) => i.id === over.id);
-        
-        const newItems = arrayMove(items, oldIndex, newIndex);
-        
-        // Save the new order
-        saveOrder(newItems.map((p) => p.id));
-        
-        return newItems;
-      });
+      const oldIndex = orderedPlaylists.findIndex((item) => item.id === active.id);
+      const newIndex = orderedPlaylists.findIndex((item) => item.id === over.id);
+      const newItems = arrayMove(orderedPlaylists, oldIndex, newIndex);
+
+      const nextOrder = newItems.map((playlist) => playlist.id);
+      setPlaylistOrder(nextOrder);
+      saveOrder(nextOrder);
     }
   };
 
@@ -181,6 +173,7 @@ function SortablePlaylistGridItem({ playlist, onPlay }: SortablePlaylistItemProp
               src={playlist.images[0].url}
               alt={playlist.name}
               fill
+              sizes="(min-width: 1024px) 12.5vw, (min-width: 640px) 20vw, 50vw"
               className="object-cover transition-transform group-hover:scale-105"
             />
           ) : (
@@ -250,6 +243,7 @@ function SortablePlaylistListItem({ playlist }: { playlist: SpotifyPlaylist }) {
               src={playlist.images[0].url}
               alt={playlist.name}
               fill
+              sizes="56px"
               className="object-cover"
             />
           ) : (

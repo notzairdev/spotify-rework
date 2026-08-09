@@ -12,6 +12,7 @@ import {
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { devError, devLog, isTauriContext } from "@/lib/env";
+import { clearSpotifyQueryCache } from "@/lib/spotify/query-cache";
 import type { AuthContextValue, AuthSession, SpotifyUser } from "./types";
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -174,6 +175,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (!isTauriContext()) {
       setSession(null);
       clearAuthCache();
+      clearSpotifyQueryCache();
       return;
     }
 
@@ -183,12 +185,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setSession(null);
       setError(null);
       clearAuthCache();
+      clearSpotifyQueryCache();
       devLog("Logged out successfully");
     } catch (err) {
       devError("Logout failed:", err);
       // Still clear session on frontend even if backend fails
       setSession(null);
       clearAuthCache();
+      clearSpotifyQueryCache();
       throw err;
     }
   }, []);

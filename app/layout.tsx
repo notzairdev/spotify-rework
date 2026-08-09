@@ -27,6 +27,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      data-scroll-behavior="smooth"
       className={cn(fontMono.variable, "h-full overflow-hidden font-sans", geist.variable)}
       suppressHydrationWarning
     >

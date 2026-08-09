@@ -10,6 +10,11 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth";
 import { usePreservedPageState } from "@/lib/page-state";
 import * as spotifyApi from "./api";
+import {
+  getSpotifyQueryCacheEntry,
+  invalidateSpotifyQueryCache,
+  runSpotifyQuery,
+} from "./query-cache";
 
 // ============================================================================
 // Types
@@ -30,58 +35,100 @@ interface UseMutationResult<TData, TVariables> {
   reset: () => void;
 }
 
+interface SpotifyQueryOptions {
+  enabled?: boolean;
+  staleTime?: number;
+}
+
 // ============================================================================
 // Helper Hook
 // ============================================================================
 
+const DEFAULT_STALE_TIME = 5 * 60 * 1000;
+const COLLECTION_STALE_TIME = 2 * 60 * 1000;
+const DETAIL_STALE_TIME = 15 * 60 * 1000;
+
 function useSpotifyQuery<T>(
+  queryKey: string | null,
   fetcher: () => Promise<T>,
-  options?: { enabled?: boolean }
+  options?: SpotifyQueryOptions,
 ): UseQueryResult<T> {
   const { isAuthenticated } = useAuth();
-  const [data, setData] = useState<T | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-  const hasFetchedRef = useRef(false);
-  const fetcherRef = useRef(fetcher);
-  
-  // Keep fetcher ref updated
-  fetcherRef.current = fetcher;
-
   const enabled = options?.enabled ?? true;
+  const staleTime = options?.staleTime ?? DEFAULT_STALE_TIME;
+  const initialEntry = queryKey
+    ? getSpotifyQueryCacheEntry<T>(queryKey)
+    : null;
+  const [result, setResult] = useState<{
+    key: string | null;
+    data: T | null;
+    isLoading: boolean;
+    error: Error | null;
+  }>({
+    key: queryKey,
+    data: initialEntry?.data ?? null,
+    isLoading: Boolean(isAuthenticated && enabled && queryKey && !initialEntry),
+    error: null,
+  });
+  const fetcherRef = useRef(fetcher);
+  const queryKeyRef = useRef(queryKey);
+  const mountedRef = useRef(false);
+
+  useEffect(() => {
+    fetcherRef.current = fetcher;
+    queryKeyRef.current = queryKey;
+  }, [fetcher, queryKey]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const refetch = useCallback(async () => {
-    if (!isAuthenticated || !enabled) return;
+    const activeKey = queryKeyRef.current;
+    if (!isAuthenticated || !enabled || !activeKey) return;
 
-    setIsLoading(true);
-    setError(null);
+    const cached = getSpotifyQueryCacheEntry<T>(activeKey);
 
     try {
-      const result = await fetcherRef.current();
-      setData(result);
-    } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
-    } finally {
-      setIsLoading(false);
+      const data = await runSpotifyQuery(activeKey, fetcherRef.current);
+      if (mountedRef.current && queryKeyRef.current === activeKey) {
+        setResult({ key: activeKey, data, isLoading: false, error: null });
+      }
+    } catch (reason: unknown) {
+      if (mountedRef.current && queryKeyRef.current === activeKey) {
+        setResult({
+          key: activeKey,
+          data: cached?.data ?? null,
+          isLoading: false,
+          error: reason instanceof Error ? reason : new Error(String(reason)),
+        });
+      }
     }
   }, [isAuthenticated, enabled]);
 
-  // Auto-fetch on mount (only once)
   useEffect(() => {
-    if (isAuthenticated && enabled && !hasFetchedRef.current) {
-      hasFetchedRef.current = true;
-      refetch();
+    if (!queryKey || !isAuthenticated || !enabled) {
+      return;
     }
-  }, [isAuthenticated, enabled, refetch]);
 
-  // Reset hasFetched when enabled changes to false then true
-  useEffect(() => {
-    if (!enabled) {
-      hasFetchedRef.current = false;
+    const cached = getSpotifyQueryCacheEntry<T>(queryKey);
+    if (!cached || Date.now() - cached.updatedAt >= staleTime) {
+      void refetch();
     }
-  }, [enabled]);
+  }, [queryKey, isAuthenticated, enabled, staleTime, refetch]);
 
-  return { data, isLoading, error, refetch };
+  if (result.key === queryKey) return { ...result, refetch };
+
+  const cached = queryKey ? getSpotifyQueryCacheEntry<T>(queryKey) : null;
+  return {
+    data: cached?.data ?? null,
+    isLoading: Boolean(isAuthenticated && enabled && queryKey && !cached),
+    error: null,
+    refetch,
+  };
 }
 
 function useSpotifyMutation<TData, TVariables>(
@@ -128,15 +175,18 @@ function useSpotifyMutation<TData, TVariables>(
  * Get current user's Spotify profile
  */
 export function useCurrentUser() {
-  return useSpotifyQuery(() => spotifyApi.getCurrentUser());
+  return useSpotifyQuery("user:me", () => spotifyApi.getCurrentUser(), {
+    staleTime: DETAIL_STALE_TIME,
+  });
 }
 
 /**
  * Get a user's profile by ID
  */
 export function useUser(userId: string | null) {
-  return useSpotifyQuery(() => spotifyApi.getUser(userId!), {
+  return useSpotifyQuery(userId ? `user:${userId}` : null, () => spotifyApi.getUser(userId!), {
     enabled: !!userId,
+    staleTime: DETAIL_STALE_TIME,
   });
 }
 
@@ -144,8 +194,9 @@ export function useUser(userId: string | null) {
  * Get a user's public playlists
  */
 export function useUserPlaylists(userId: string | null, limit: number = 50) {
-  return useSpotifyQuery(() => spotifyApi.getUserPlaylists(userId!, limit), {
+  return useSpotifyQuery(userId ? `user:${userId}:playlists:${limit}` : null, () => spotifyApi.getUserPlaylists(userId!, limit), {
     enabled: !!userId,
+    staleTime: COLLECTION_STALE_TIME,
   });
 }
 
@@ -156,7 +207,11 @@ export function useTopTracks(
   timeRange: "short_term" | "medium_term" | "long_term" = "medium_term",
   limit: number = 20
 ) {
-  return useSpotifyQuery(() => spotifyApi.getTopTracks(timeRange, limit));
+  return useSpotifyQuery(
+    `user:me:top-tracks:${timeRange}:${limit}`,
+    () => spotifyApi.getTopTracks(timeRange, limit),
+    { staleTime: COLLECTION_STALE_TIME },
+  );
 }
 
 /**
@@ -166,7 +221,11 @@ export function useTopArtists(
   timeRange: "short_term" | "medium_term" | "long_term" = "medium_term",
   limit: number = 20
 ) {
-  return useSpotifyQuery(() => spotifyApi.getTopArtists(timeRange, limit));
+  return useSpotifyQuery(
+    `user:me:top-artists:${timeRange}:${limit}`,
+    () => spotifyApi.getTopArtists(timeRange, limit),
+    { staleTime: COLLECTION_STALE_TIME },
+  );
 }
 
 // ============================================================================
@@ -177,8 +236,9 @@ export function useTopArtists(
  * Get current user's playlists
  */
 export function useMyPlaylists(limit: number = 50, options?: { enabled?: boolean }) {
-  return useSpotifyQuery(() => spotifyApi.getMyPlaylists(limit), {
+  return useSpotifyQuery(`user:me:playlists:${limit}`, () => spotifyApi.getMyPlaylists(limit), {
     enabled: options?.enabled ?? true,
+    staleTime: COLLECTION_STALE_TIME,
   });
 }
 
@@ -186,15 +246,18 @@ export function useMyPlaylists(limit: number = 50, options?: { enabled?: boolean
  * Get all user's playlists (paginated automatically)
  */
 export function useAllMyPlaylists() {
-  return useSpotifyQuery(() => spotifyApi.getAllMyPlaylists());
+  return useSpotifyQuery("user:me:playlists:all", () => spotifyApi.getAllMyPlaylists(), {
+    staleTime: COLLECTION_STALE_TIME,
+  });
 }
 
 /**
  * Get a specific playlist
  */
 export function usePlaylist(playlistId: string | null) {
-  return useSpotifyQuery(() => spotifyApi.getPlaylist(playlistId!), {
+  return useSpotifyQuery(playlistId ? `playlist:${playlistId}` : null, () => spotifyApi.getPlaylist(playlistId!), {
     enabled: !!playlistId,
+    staleTime: DETAIL_STALE_TIME,
   });
 }
 
@@ -203,8 +266,9 @@ export function usePlaylist(playlistId: string | null) {
  */
 export function usePlaylistTracks(playlistId: string | null, limit: number = 100) {
   return useSpotifyQuery(
+    playlistId ? `playlist:${playlistId}:tracks:${limit}` : null,
     () => spotifyApi.getPlaylistTracks(playlistId!, limit),
-    { enabled: !!playlistId }
+    { enabled: !!playlistId, staleTime: COLLECTION_STALE_TIME }
   );
 }
 
@@ -213,7 +277,7 @@ export function usePlaylistTracks(playlistId: string | null, limit: number = 100
  */
 export function useCreatePlaylist() {
   return useSpotifyMutation(
-    ({
+    async ({
       name,
       description,
       isPublic,
@@ -221,11 +285,14 @@ export function useCreatePlaylist() {
       name: string;
       description?: string;
       isPublic?: boolean;
-    }) =>
-      spotifyApi.createPlaylist(name, {
+    }) => {
+      const playlist = await spotifyApi.createPlaylist(name, {
         description,
         public: isPublic,
-      })
+      });
+      invalidateSpotifyQueryCache("user:me:playlists");
+      return playlist;
+    }
   );
 }
 
@@ -234,8 +301,11 @@ export function useCreatePlaylist() {
  */
 export function useAddTracksToPlaylist() {
   return useSpotifyMutation(
-    ({ playlistId, uris }: { playlistId: string; uris: string[] }) =>
-      spotifyApi.addTracksToPlaylist(playlistId, uris)
+    async ({ playlistId, uris }: { playlistId: string; uris: string[] }) => {
+      const result = await spotifyApi.addTracksToPlaylist(playlistId, uris);
+      invalidateSpotifyQueryCache(`playlist:${playlistId}`);
+      return result;
+    }
   );
 }
 
@@ -244,8 +314,11 @@ export function useAddTracksToPlaylist() {
  */
 export function useRemoveTracksFromPlaylist() {
   return useSpotifyMutation(
-    ({ playlistId, uris }: { playlistId: string; uris: string[] }) =>
-      spotifyApi.removeTracksFromPlaylist(playlistId, uris)
+    async ({ playlistId, uris }: { playlistId: string; uris: string[] }) => {
+      const result = await spotifyApi.removeTracksFromPlaylist(playlistId, uris);
+      invalidateSpotifyQueryCache(`playlist:${playlistId}`);
+      return result;
+    }
   );
 }
 
@@ -257,21 +330,30 @@ export function useRemoveTracksFromPlaylist() {
  * Get available playback devices
  */
 export function useDevices(options?: { enabled?: boolean }) {
-  return useSpotifyQuery(() => spotifyApi.getDevices(), options);
+  return useSpotifyQuery("player:devices", () => spotifyApi.getDevices(), {
+    ...options,
+    staleTime: 0,
+  });
 }
 
 /**
  * Get current playback state
  */
 export function usePlaybackState(options?: { enabled?: boolean }) {
-  return useSpotifyQuery(() => spotifyApi.getPlaybackState(), options);
+  return useSpotifyQuery("player:state", () => spotifyApi.getPlaybackState(), {
+    ...options,
+    staleTime: 0,
+  });
 }
 
 /**
  * Get currently playing track
  */
 export function useCurrentlyPlaying(options?: { enabled?: boolean }) {
-  return useSpotifyQuery(() => spotifyApi.getCurrentlyPlaying(), options);
+  return useSpotifyQuery("player:current", () => spotifyApi.getCurrentlyPlaying(), {
+    ...options,
+    staleTime: 0,
+  });
 }
 
 /**
@@ -288,7 +370,10 @@ export function useTransferPlayback() {
  * Get player queue
  */
 export function useQueue(options?: { enabled?: boolean }) {
-  return useSpotifyQuery(() => spotifyApi.getQueue(), options);
+  return useSpotifyQuery("player:queue", () => spotifyApi.getQueue(), {
+    ...options,
+    staleTime: 0,
+  });
 }
 
 // ============================================================================
@@ -350,21 +435,33 @@ export function useSearch() {
  * Get user's saved tracks (Liked Songs)
  */
 export function useSavedTracks(limit: number = 50) {
-  return useSpotifyQuery(() => spotifyApi.getSavedTracks(limit));
+  return useSpotifyQuery(
+    `user:me:saved-tracks:${limit}`,
+    () => spotifyApi.getSavedTracks(limit),
+    { staleTime: COLLECTION_STALE_TIME },
+  );
 }
 
 /**
  * Save tracks to library
  */
 export function useSaveTracks() {
-  return useSpotifyMutation((ids: string[]) => spotifyApi.saveTracks(ids));
+  return useSpotifyMutation(async (ids: string[]) => {
+    const result = await spotifyApi.saveTracks(ids);
+    invalidateSpotifyQueryCache("user:me:saved-tracks");
+    return result;
+  });
 }
 
 /**
  * Remove tracks from library
  */
 export function useRemoveTracks() {
-  return useSpotifyMutation((ids: string[]) => spotifyApi.removeTracks(ids));
+  return useSpotifyMutation(async (ids: string[]) => {
+    const result = await spotifyApi.removeTracks(ids);
+    invalidateSpotifyQueryCache("user:me:saved-tracks");
+    return result;
+  });
 }
 
 /**
@@ -378,14 +475,22 @@ export function useCheckSavedTracks() {
  * Get user's saved albums
  */
 export function useSavedAlbums(limit: number = 50) {
-  return useSpotifyQuery(() => spotifyApi.getSavedAlbums(limit));
+  return useSpotifyQuery(
+    `user:me:saved-albums:${limit}`,
+    () => spotifyApi.getSavedAlbums(limit),
+    { staleTime: COLLECTION_STALE_TIME },
+  );
 }
 
 /**
  * Get recently played tracks
  */
 export function useRecentlyPlayed(limit: number = 50) {
-  return useSpotifyQuery(() => spotifyApi.getRecentlyPlayed(limit));
+  return useSpotifyQuery(
+    `user:me:recently-played:${limit}`,
+    () => spotifyApi.getRecentlyPlayed(limit),
+    { staleTime: 60 * 1000 },
+  );
 }
 
 // ============================================================================
@@ -396,8 +501,9 @@ export function useRecentlyPlayed(limit: number = 50) {
  * Get an artist by ID
  */
 export function useArtist(artistId: string | null) {
-  return useSpotifyQuery(() => spotifyApi.getArtist(artistId!), {
+  return useSpotifyQuery(artistId ? `artist:${artistId}` : null, () => spotifyApi.getArtist(artistId!), {
     enabled: !!artistId,
+    staleTime: DETAIL_STALE_TIME,
   });
 }
 
@@ -405,8 +511,9 @@ export function useArtist(artistId: string | null) {
  * Get artist's top tracks
  */
 export function useArtistTopTracks(artistId: string | null) {
-  return useSpotifyQuery(() => spotifyApi.getArtistTopTracks(artistId!), {
+  return useSpotifyQuery(artistId ? `artist:${artistId}:top-tracks` : null, () => spotifyApi.getArtistTopTracks(artistId!), {
     enabled: !!artistId,
+    staleTime: DETAIL_STALE_TIME,
   });
 }
 
@@ -418,8 +525,9 @@ export function useArtistAlbums(
   includeGroups: ("album" | "single" | "appears_on" | "compilation")[] = ["album", "single"]
 ) {
   return useSpotifyQuery(
+    artistId ? `artist:${artistId}:albums:${[...includeGroups].sort().join(",")}` : null,
     () => spotifyApi.getArtistAlbums(artistId!, includeGroups),
-    { enabled: !!artistId }
+    { enabled: !!artistId, staleTime: DETAIL_STALE_TIME }
   );
 }
 
@@ -428,8 +536,9 @@ export function useArtistAlbums(
  */
 export function useArtistAppearsOn(artistId: string | null) {
   return useSpotifyQuery(
+    artistId ? `artist:${artistId}:albums:appears_on` : null,
     () => spotifyApi.getArtistAlbums(artistId!, ["appears_on"]),
-    { enabled: !!artistId }
+    { enabled: !!artistId, staleTime: DETAIL_STALE_TIME }
   );
 }
 
@@ -437,8 +546,9 @@ export function useArtistAppearsOn(artistId: string | null) {
  * Get related artists
  */
 export function useRelatedArtists(artistId: string | null) {
-  return useSpotifyQuery(() => spotifyApi.getRelatedArtists(artistId!), {
+  return useSpotifyQuery(artistId ? `artist:${artistId}:related` : null, () => spotifyApi.getRelatedArtists(artistId!), {
     enabled: !!artistId,
+    staleTime: DETAIL_STALE_TIME,
   });
 }
 
@@ -446,7 +556,11 @@ export function useRelatedArtists(artistId: string | null) {
  * Get user's followed artists
  */
 export function useFollowedArtists(limit: number = 50) {
-  return useSpotifyQuery(() => spotifyApi.getFollowedArtists(limit));
+  return useSpotifyQuery(
+    `user:me:followed-artists:${limit}`,
+    () => spotifyApi.getFollowedArtists(limit),
+    { staleTime: COLLECTION_STALE_TIME },
+  );
 }
 
 // ============================================================================
@@ -457,8 +571,9 @@ export function useFollowedArtists(limit: number = 50) {
  * Get an album by ID
  */
 export function useAlbum(albumId: string | null) {
-  return useSpotifyQuery(() => spotifyApi.getAlbum(albumId!), {
+  return useSpotifyQuery(albumId ? `album:${albumId}` : null, () => spotifyApi.getAlbum(albumId!), {
     enabled: !!albumId,
+    staleTime: DETAIL_STALE_TIME,
   });
 }
 
@@ -466,8 +581,9 @@ export function useAlbum(albumId: string | null) {
  * Get album tracks
  */
 export function useAlbumTracks(albumId: string | null) {
-  return useSpotifyQuery(() => spotifyApi.getAlbumTracks(albumId!), {
+  return useSpotifyQuery(albumId ? `album:${albumId}:tracks` : null, () => spotifyApi.getAlbumTracks(albumId!), {
     enabled: !!albumId,
+    staleTime: DETAIL_STALE_TIME,
   });
 }
 
@@ -479,8 +595,9 @@ export function useAlbumTracks(albumId: string | null) {
  * Get a track by ID
  */
 export function useTrack(trackId: string | null) {
-  return useSpotifyQuery(() => spotifyApi.getTrack(trackId!), {
+  return useSpotifyQuery(trackId ? `track:${trackId}` : null, () => spotifyApi.getTrack(trackId!), {
     enabled: !!trackId,
+    staleTime: DETAIL_STALE_TIME,
   });
 }
 
@@ -501,7 +618,11 @@ export function useRecommendations() {
  * Get available genre seeds
  */
 export function useAvailableGenreSeeds() {
-  return useSpotifyQuery(() => spotifyApi.getAvailableGenreSeeds());
+  return useSpotifyQuery(
+    "browse:genre-seeds",
+    () => spotifyApi.getAvailableGenreSeeds(),
+    { staleTime: DETAIL_STALE_TIME },
+  );
 }
 
 // ============================================================================
@@ -512,7 +633,11 @@ export function useAvailableGenreSeeds() {
  * Get browse categories
  */
 export function useCategories(limit: number = 50) {
-  return useSpotifyQuery(() => spotifyApi.getCategories(limit));
+  return useSpotifyQuery(
+    `browse:categories:${limit}`,
+    () => spotifyApi.getCategories(limit),
+    { staleTime: DETAIL_STALE_TIME },
+  );
 }
 
 /**
@@ -520,8 +645,9 @@ export function useCategories(limit: number = 50) {
  */
 export function useCategoryPlaylists(categoryId: string | null, limit: number = 50) {
   return useSpotifyQuery(
+    categoryId ? `browse:category:${categoryId}:playlists:${limit}` : null,
     () => spotifyApi.getCategoryPlaylists(categoryId!, limit),
-    { enabled: !!categoryId }
+    { enabled: !!categoryId, staleTime: COLLECTION_STALE_TIME }
   );
 }
 
@@ -529,14 +655,22 @@ export function useCategoryPlaylists(categoryId: string | null, limit: number = 
  * Get new album releases
  */
 export function useNewReleases(limit: number = 20) {
-  return useSpotifyQuery(() => spotifyApi.getNewReleases(limit));
+  return useSpotifyQuery(
+    `browse:new-releases:${limit}`,
+    () => spotifyApi.getNewReleases(limit),
+    { staleTime: COLLECTION_STALE_TIME },
+  );
 }
 
 /**
  * Get featured playlists
  */
 export function useFeaturedPlaylists(limit: number = 20) {
-  return useSpotifyQuery(() => spotifyApi.getFeaturedPlaylists(limit));
+  return useSpotifyQuery(
+    `browse:featured-playlists:${limit}`,
+    () => spotifyApi.getFeaturedPlaylists(limit),
+    { staleTime: COLLECTION_STALE_TIME },
+  );
 }
 
 // ============================================================================
@@ -563,22 +697,18 @@ export function useDebouncedSearch(debounceMs: number = 2000) {
       clearTimeout(timeoutRef.current);
     }
 
-    if (!query.trim()) {
-      setDebouncedQuery("");
-      setResults(null);
-      return;
-    }
-
+    const normalizedQuery = query.trim();
     timeoutRef.current = setTimeout(() => {
-      setDebouncedQuery(query);
-    }, debounceMs);
+      setDebouncedQuery(normalizedQuery);
+      if (!normalizedQuery) setResults(null);
+    }, normalizedQuery ? debounceMs : 0);
 
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [query, debounceMs]);
+  }, [query, debounceMs, setResults]);
 
   // Execute search when debounced query changes
   useEffect(() => {
@@ -586,6 +716,7 @@ export function useDebouncedSearch(debounceMs: number = 2000) {
       return;
     }
 
+    let cancelled = false;
     const executeSearch = async () => {
       setIsLoading(true);
       setError(null);
@@ -596,23 +727,26 @@ export function useDebouncedSearch(debounceMs: number = 2000) {
           ["track", "artist", "album", "playlist"],
           20
         );
-        setResults(data);
+        if (!cancelled) setResults(data);
       } catch (e) {
-        setError(e instanceof Error ? e : new Error(String(e)));
+        if (!cancelled) setError(e instanceof Error ? e : new Error(String(e)));
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
-    executeSearch();
-  }, [debouncedQuery]);
+    void executeSearch();
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQuery, setResults]);
 
   const clear = useCallback(() => {
     setQuery("");
     setDebouncedQuery("");
     setResults(null);
     setError(null);
-  }, []);
+  }, [setQuery, setResults]);
 
   return {
     query,

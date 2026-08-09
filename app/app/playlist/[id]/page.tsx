@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect, useCallback } from "react";
+import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -10,7 +10,6 @@ import {
   Clock,
   MoreHorizontal,
   Heart,
-  ArrowLeft,
   ListMusic,
   Share2,
   ExternalLink,
@@ -22,17 +21,17 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { usePlaylist, usePlaylistTracks, useCurrentUser } from "@/lib/spotify/hooks";
+import { invalidateSpotifyQueryCache } from "@/lib/spotify/query-cache";
+import { usePreservedPageState } from "@/lib/page-state";
 import {
   startPlayback,
   setShuffle,
   followPlaylist,
   unfollowPlaylist,
   checkUserFollowsPlaylist,
-  getCurrentUser,
 } from "@/lib/spotify/api";
 import { Spinner } from "@/components/ui/spinner";
 import { TrackContextMenu } from "@/components/context";
@@ -43,14 +42,6 @@ function formatDuration(ms: number): string {
   const minutes = Math.floor(ms / 60000);
   const seconds = Math.floor((ms % 60000) / 1000);
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("es-MX", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
 }
 
 interface PageProps {
@@ -66,21 +57,25 @@ export default function PlaylistPage({ params }: PageProps) {
   const { data: currentUser } = useCurrentUser();
   
   const [coverColor, setCoverColor] = useState<HSL | null>(null);
-  const [isFollowing, setIsFollowing] = useState(false);
+  const [isFollowing, setIsFollowing] = usePreservedPageState("is-following", false);
   const [followLoading, setFollowLoading] = useState(false);
-  const [followChecked, setFollowChecked] = useState(false);
+  const [followChecked, setFollowChecked] = usePreservedPageState("follow-checked", false);
 
   // Extract dominant color from cover image
   useEffect(() => {
     const imageUrl = playlist?.images?.[0]?.url;
-    if (!imageUrl) {
-      setCoverColor(null);
-      return;
-    }
+    let cancelled = false;
+    const colorPromise = imageUrl
+      ? extractDominantColor(imageUrl)
+      : Promise.resolve(null);
 
-    extractDominantColor(imageUrl).then((color) => {
-      setCoverColor(color);
+    colorPromise.then((color) => {
+      if (!cancelled) setCoverColor(color);
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [playlist?.images]);
 
   // Check if user follows this playlist
@@ -91,7 +86,7 @@ export default function PlaylistPage({ params }: PageProps) {
     checkUserFollowsPlaylist(id, [currentUser.id]).then(([follows]) => {
       setIsFollowing(follows);
     }).catch(() => {});
-  }, [currentUser?.id, id, followChecked]);
+  }, [currentUser?.id, id, followChecked, setFollowChecked, setIsFollowing]);
 
   const tracks = tracksData?.items ?? [];
   const totalDuration = tracks.reduce(
@@ -149,7 +144,8 @@ export default function PlaylistPage({ params }: PageProps) {
         setIsFollowing(true);
         toast.success("Added to your library");
       }
-    } catch (e) {
+      invalidateSpotifyQueryCache("user:me:playlists");
+    } catch {
       toast.error("Failed to update");
     } finally {
       setFollowLoading(false);
@@ -253,6 +249,7 @@ export default function PlaylistPage({ params }: PageProps) {
                 src={playlist.images[0].url}
                 alt={playlist.name}
                 fill
+                sizes="(min-width: 768px) 224px, 192px"
                 className="object-cover"
                 priority
               />
@@ -334,7 +331,7 @@ export default function PlaylistPage({ params }: PageProps) {
 
             return (
               <TrackContextMenu
-                key={`${track.id}-${index}`}
+                key={`${track.uri}-${item.added_at ?? "unknown"}`}
                 trackId={track.id}
                 trackUri={track.uri}
                 trackName={track.name}
@@ -351,7 +348,8 @@ export default function PlaylistPage({ params }: PageProps) {
                   tabIndex={0}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
-                      handlePlayTrack(index);
+                      e.preventDefault();
+                      void handlePlayTrack(index);
                     }
                   }}
                 >

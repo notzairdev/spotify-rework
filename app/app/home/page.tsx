@@ -41,6 +41,16 @@ import {
 } from "@/lib/spotify";
 import { cn } from "@/lib/utils";
 
+const TODAY_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+});
+const COMPACT_NUMBER_FORMATTER = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
 export default function HomePage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -85,22 +95,6 @@ export default function HomePage() {
       }
     } catch (error) {
       console.error("Failed to play track:", error);
-    }
-  };
-
-  const playAlbum = async (albumId: string) => {
-    try {
-      await startPlayback({ contextUri: `spotify:album:${albumId}` });
-    } catch (error) {
-      console.error("Failed to play album:", error);
-    }
-  };
-
-  const playPlaylist = async (playlistId: string) => {
-    try {
-      await startPlayback({ contextUri: `spotify:playlist:${playlistId}` });
-    } catch (error) {
-      console.error("Failed to play playlist:", error);
     }
   };
 
@@ -161,7 +155,9 @@ export default function HomePage() {
                 src={spotlightTrack.album.images[0].url}
                 alt={spotlightTrack.album.name}
                 fill
-                priority
+                sizes="100vw"
+                loading="eager"
+                fetchPriority="high"
                 className="object-cover transition-transform duration-700 group-hover:scale-105"
               />
             )}
@@ -277,8 +273,13 @@ export default function HomePage() {
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
             {tracksLoading
               ? Array.from({ length: 6 }).map((_, index) => <CardSkeleton key={index} />)
-              : rotationAlbums.map((album) => (
-                  <AlbumCard key={album.id} album={album} onPlay={() => playAlbum(album.id)} />
+              : rotationAlbums.map((album, index) => (
+                  <AlbumCard
+                    key={album.id}
+                    album={album}
+                    onPlay={() => playAlbum(album.id)}
+                    eager={index < 2}
+                  />
                 ))}
           </div>
         </section>
@@ -349,7 +350,7 @@ export default function HomePage() {
                     key={`${item.track.id}-${item.played_at}`}
                     type="button"
                     onClick={() => playTrack(item.track)}
-                    className="group flex items-center gap-3 rounded-2xl border border-transparent bg-card/35 p-2.5 text-left transition-all hover:border-border/60 hover:bg-card"
+                    className="group flex items-center gap-3 rounded-2xl border border-transparent bg-card/35 p-2.5 text-left transition-colors hover:border-border/60 hover:bg-card"
                   >
                     <CoverImage
                       src={item.track.album.images[0]?.url}
@@ -366,7 +367,7 @@ export default function HomePage() {
                     <span className="hidden text-[10px] text-muted-foreground sm:block">
                       {formatRelativeTime(item.played_at)}
                     </span>
-                    <span className="flex size-8 items-center justify-center rounded-full bg-foreground text-background opacity-0 transition-all group-hover:opacity-100">
+                    <span className="flex size-8 items-center justify-center rounded-full bg-foreground text-background opacity-0 transition-opacity group-hover:opacity-100">
                       <Play className="size-3 fill-current" />
                     </span>
                     <span className="sr-only">Play item {index + 1}</span>
@@ -392,7 +393,7 @@ export default function HomePage() {
               : playlists.slice(0, 8).map((playlist) => (
                   <div
                     key={playlist.id}
-                    className="group flex min-w-0 items-center gap-4 rounded-3xl border border-border/50 bg-card/45 p-3 transition-all hover:-translate-y-0.5 hover:bg-card hover:shadow-xl hover:shadow-black/10"
+                    className="group flex min-w-0 items-center gap-4 rounded-3xl border border-border/50 bg-card/45 p-3 transition-[transform,background-color,box-shadow] hover:-translate-y-0.5 hover:bg-card hover:shadow-xl hover:shadow-black/10"
                   >
                     <Link href={`/app/playlist/${playlist.id}`} className="shrink-0">
                       <CoverImage
@@ -414,7 +415,7 @@ export default function HomePage() {
                       type="button"
                       onClick={() => playPlaylist(playlist.id)}
                       aria-label={`Play ${playlist.name}`}
-                      className="flex size-9 shrink-0 items-center justify-center rounded-full bg-foreground text-background opacity-0 transition-all group-hover:opacity-100"
+                      className="flex size-9 shrink-0 items-center justify-center rounded-full bg-foreground text-background opacity-0 transition-opacity group-hover:opacity-100"
                     >
                       <Play className="size-3.5 fill-current" />
                     </button>
@@ -466,7 +467,7 @@ export default function HomePage() {
                   >
                     <div className="relative mx-auto size-28 overflow-hidden rounded-full border border-border/60 bg-muted shadow-lg transition-transform group-hover:scale-105">
                       {artist.images?.[0]?.url ? (
-                        <Image src={artist.images[0].url} alt={artist.name} fill className="object-cover" />
+                        <Image src={artist.images[0].url} alt={artist.name} fill sizes="112px" className="object-cover" />
                       ) : (
                         <div className="flex size-full items-center justify-center">
                           <Music2 className="size-7 text-muted-foreground" />
@@ -521,20 +522,24 @@ function AlbumCard({
   album,
   onPlay,
   compact = false,
+  eager = false,
 }: {
   album: SpotifyAlbum;
   onPlay: () => void;
   compact?: boolean;
+  eager?: boolean;
 }) {
   return (
     <article className="group min-w-0">
       <div className="relative aspect-square overflow-hidden rounded-2xl bg-muted shadow-lg">
-        <Link href={`/app/album/${album.id}`}>
+        <Link href={`/app/album/${album.id}`} className="relative block size-full">
           {album.images[0]?.url ? (
             <Image
               src={album.images[0].url}
               alt={album.name}
               fill
+              loading={eager ? "eager" : "lazy"}
+              sizes="(min-width: 1280px) 16vw, (min-width: 768px) 25vw, 50vw"
               className="object-cover transition-transform duration-500 group-hover:scale-105"
             />
           ) : (
@@ -547,7 +552,7 @@ function AlbumCard({
           type="button"
           onClick={onPlay}
           aria-label={`Play ${album.name}`}
-          className="absolute bottom-2.5 right-2.5 flex size-10 translate-y-2 items-center justify-center rounded-full bg-primary text-primary-foreground opacity-0 shadow-xl transition-all group-hover:translate-y-0 group-hover:opacity-100"
+          className="absolute bottom-2.5 right-2.5 flex size-10 translate-y-2 items-center justify-center rounded-full bg-primary text-primary-foreground opacity-0 shadow-xl transition-[transform,opacity] group-hover:translate-y-0 group-hover:opacity-100"
         >
           <Play className="size-4 fill-current" />
         </button>
@@ -572,7 +577,7 @@ function RecommendationCard({
   onPlay: () => void;
 }) {
   return (
-    <article className="group flex min-w-0 items-center gap-3 rounded-2xl border border-border/45 bg-card/35 p-2.5 transition-all hover:border-border hover:bg-card/70">
+    <article className="group flex min-w-0 items-center gap-3 rounded-2xl border border-border/45 bg-card/35 p-2.5 transition-colors hover:border-border hover:bg-card/70">
       <Link href={`/app/album/${track.album.id}`} className="shrink-0">
         <CoverImage
           src={track.album.images[0]?.url}
@@ -625,6 +630,7 @@ function TrendCard({
             src={trend.coverUrl}
             alt={trend.releaseName}
             fill
+            sizes="(min-width: 1280px) 16vw, (min-width: 768px) 25vw, 50vw"
             className="object-cover transition-transform duration-500 group-hover:scale-105"
           />
         ) : (
@@ -633,7 +639,7 @@ function TrendCard({
           </span>
         )}
         <span className="absolute inset-0 bg-linear-to-t from-black/65 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
-        <span className="absolute bottom-2.5 right-2.5 flex size-9 translate-y-2 items-center justify-center rounded-full bg-white text-black opacity-0 shadow-xl transition-all group-hover:translate-y-0 group-hover:opacity-100">
+        <span className="absolute bottom-2.5 right-2.5 flex size-9 translate-y-2 items-center justify-center rounded-full bg-white text-black opacity-0 shadow-xl transition-[transform,opacity] group-hover:translate-y-0 group-hover:opacity-100">
           {isResolving ? (
             <LoaderCircle className="size-4 animate-spin" />
           ) : (
@@ -679,6 +685,7 @@ function CoverImage({
       alt={alt}
       width={size}
       height={size}
+      style={{ width: size, height: size }}
       className={cn("shrink-0 object-cover", className)}
     />
   );
@@ -767,16 +774,25 @@ function getGreeting(): string {
 }
 
 function formatToday(): string {
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  }).format(new Date());
+  return TODAY_FORMATTER.format(new Date());
 }
 
 function formatCompactNumber(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value);
+  return COMPACT_NUMBER_FORMATTER.format(value);
+}
+
+async function playAlbum(albumId: string) {
+  try {
+    await startPlayback({ contextUri: `spotify:album:${albumId}` });
+  } catch (error) {
+    console.error("Failed to play album:", error);
+  }
+}
+
+async function playPlaylist(playlistId: string) {
+  try {
+    await startPlayback({ contextUri: `spotify:playlist:${playlistId}` });
+  } catch (error) {
+    console.error("Failed to play playlist:", error);
+  }
 }

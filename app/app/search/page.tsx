@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Search, Play, Music, Disc3, User, X, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -29,6 +28,14 @@ function getCategoryColor(index: number): string {
   return categoryColors[index % categoryColors.length];
 }
 
+async function playTrack(uri: string) {
+  try {
+    await startPlayback({ uris: [uri] });
+  } catch (error) {
+    console.error("Failed to play:", error);
+  }
+}
+
 export default function SearchPage() {
   const { data: categoriesData, isLoading: categoriesLoading } = useCategories(40);
   const { 
@@ -47,22 +54,6 @@ export default function SearchPage() {
     (results.albums?.items?.length ?? 0) > 0 ||
     (results.playlists?.items?.length ?? 0) > 0
   );
-
-  const handlePlayTrack = async (uri: string) => {
-    try {
-      await startPlayback({ uris: [uri] });
-    } catch (e) {
-      console.error("Failed to play:", e);
-    }
-  };
-
-  const handlePlayContext = async (uri: string) => {
-    try {
-      await startPlayback({ contextUri: uri });
-    } catch (e) {
-      console.error("Failed to play:", e);
-    }
-  };
 
   return (
     <div className="py-24 px-6 container mx-auto animate-fade-in">
@@ -84,6 +75,8 @@ export default function SearchPage() {
           />
           {query && (
             <button
+              type="button"
+              aria-label="Clear search"
               onClick={clear}
               className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 rounded-full hover:bg-white/10 transition-colors"
             >
@@ -114,10 +107,11 @@ export default function SearchPage() {
               <h2 className="text-xl font-semibold mb-4">Canciones</h2>
               <div className="space-y-2">
                 {results.tracks.items.slice(0, 5).map((track) => (
-                  <div
+                  <button
+                    type="button"
                     key={track.id}
-                    onClick={() => handlePlayTrack(track.uri)}
-                    className="flex items-center gap-4 p-3 rounded-xl hover:bg-card/50 cursor-pointer transition-colors group"
+                    onClick={() => void playTrack(track.uri)}
+                    className="flex w-full items-center gap-4 rounded-xl p-3 text-left transition-colors hover:bg-card/50 group"
                   >
                     <div className="relative">
                       {track.album.images[0]?.url ? (
@@ -144,7 +138,7 @@ export default function SearchPage() {
                     <span className="text-sm text-muted-foreground">
                       {formatDuration(track.duration_ms)}
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </section>

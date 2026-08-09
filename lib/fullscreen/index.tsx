@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { isTauriContext, devLog, devError } from "@/lib/env";
 
@@ -56,8 +56,13 @@ export function FullscreenProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const value = useMemo(
+    () => ({ isFullscreen, setFullscreen, toggleFullscreen }),
+    [isFullscreen, setFullscreen, toggleFullscreen],
+  );
+
   return (
-    <FullscreenContext.Provider value={{ isFullscreen, setFullscreen, toggleFullscreen }}>
+    <FullscreenContext.Provider value={value}>
       {children}
     </FullscreenContext.Provider>
   );

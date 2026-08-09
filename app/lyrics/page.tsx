@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { ExternalLink, Music, PenLine, SkipForward } from "lucide-react";
+import { Music, SkipForward } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
 import { useSpotifyPlayer, useQueue } from "@/lib/spotify";
@@ -30,9 +30,9 @@ function InterludeDots({ progress }: { progress: number }) {
       transition={{ duration: 0.6 }}
     >
       <div className="flex items-center gap-2.5">
-        {[0, 0.33, 0.66].map((offset, i) => (
+        {[0, 0.33, 0.66].map((offset) => (
           <motion.div
-            key={i}
+            key={offset}
             className="rounded-full bg-white/60"
             style={{ width: 10, height: 10 }}
             animate={{
@@ -50,6 +50,13 @@ function InterludeDots({ progress }: { progress: number }) {
       </div>
     </motion.div>
   );
+}
+
+function formatTime(ms: number) {
+  const secondsTotal = Math.floor(ms / 1000);
+  const minutes = Math.floor(secondsTotal / 60);
+  const seconds = secondsTotal % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -168,14 +175,6 @@ export default function LyricsPage() {
   const trackId = track?.id;
   const { data: trackCredits } = useTrackCredits(trackId ?? null);
 
-  // Format time helper
-  const formatTime = (ms: number) => {
-    const s = Math.floor(ms / 1000);
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${sec.toString().padStart(2, "0")}`;
-  };
-
   // Scroll a line to ~38% from the top of the container (optical center)
   const scrollToLine = useCallback(
     (lineIndex: number, behavior: ScrollBehavior = "smooth") => {
@@ -251,7 +250,6 @@ export default function LyricsPage() {
         clearTimeout(scrollCooldownRef.current);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userInteracted]);
 
   // ---- Outro detection ----
@@ -281,15 +279,24 @@ export default function LyricsPage() {
 
   // ---- Extract dominant color ----
   useEffect(() => {
-    if (!albumArt) {
-      setAmbientColor(null);
-      return;
-    }
-    extractDominantColor(albumArt).then((c) => c && setAmbientColor(c));
+    let cancelled = false;
+    const colorPromise = albumArt
+      ? extractDominantColor(albumArt)
+      : Promise.resolve(null);
+
+    colorPromise.then((color) => {
+      if (!cancelled) setAmbientColor(color);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [albumArt]);
 
   // ---- Track change → reset scroll + outro ----
   useEffect(() => {
+    let fadeTimer: ReturnType<typeof setTimeout> | null = null;
+    let scrollFrame: number | null = null;
     if (
       trackId &&
       prevTrackIdRef.current &&
@@ -298,21 +305,27 @@ export default function LyricsPage() {
       setOutroFadeOut(true);
       setUserInteracted(false);
       setUserScrolling(false);
-      setTimeout(() => setOutroFadeOut(false), 500);
+      fadeTimer = setTimeout(() => setOutroFadeOut(false), 500);
 
       isProgrammaticScroll.current = true;
       if (lyricsContainerRef.current) {
         lyricsContainerRef.current.scrollTo({ top: 0, behavior: "instant" });
       }
-      requestAnimationFrame(() => {
+      scrollFrame = requestAnimationFrame(() => {
         isProgrammaticScroll.current = false;
       });
     }
     prevTrackIdRef.current = trackId ?? null;
+
+    return () => {
+      if (fadeTimer) clearTimeout(fadeTimer);
+      if (scrollFrame !== null) cancelAnimationFrame(scrollFrame);
+    };
   }, [trackId]);
 
   // ---- Reset scroll when song restarts (position jumps back significantly) ----
   useEffect(() => {
+    let scrollTimer: ReturnType<typeof setTimeout> | null = null;
     const jumped = prevPositionRef.current - positionSeconds;
     if (jumped > 3) {
       refetchQueue();
@@ -323,23 +336,40 @@ export default function LyricsPage() {
       } else if (lineRefs.current[currentLineIndex]) {
         scrollToLine(currentLineIndex, "smooth");
       }
-      setTimeout(() => {
+      scrollTimer = setTimeout(() => {
         isProgrammaticScroll.current = false;
       }, 600);
     }
     prevPositionRef.current = positionSeconds;
-  }, [positionSeconds, currentLineIndex, refetchQueue]);
+
+    return () => {
+      if (scrollTimer) clearTimeout(scrollTimer);
+    };
+  }, [positionSeconds, currentLineIndex, refetchQueue, scrollToLine]);
 
   // Seek back during outro → fade out overlay
   useEffect(() => {
+    let fadeTimer: ReturnType<typeof setTimeout> | null = null;
     if (outroState.isOutro && positionSeconds < prevPositionRef.current - 2) {
       setOutroFadeOut(true);
-      setTimeout(() => setOutroFadeOut(false), 500);
+      fadeTimer = setTimeout(() => setOutroFadeOut(false), 500);
     }
+
+    return () => {
+      if (fadeTimer) clearTimeout(fadeTimer);
+    };
   }, [positionSeconds, outroState.isOutro]);
 
   useEffect(() => {
-    if (!outroState.isOutro) setUserInteracted(false);
+    if (outroState.isOutro) return;
+
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setUserInteracted(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [outroState.isOutro]);
 
   const handleUserInteraction = useCallback(() => {
@@ -350,6 +380,7 @@ export default function LyricsPage() {
   useEffect(() => {
     if (userScrolling) return; // user is scrolling — don't auto-scroll
 
+    let scrollTimer: ReturnType<typeof setTimeout> | null = null;
     if (
       lyrics.length > 0 &&
       currentLineIndex >= 0 &&
@@ -358,12 +389,16 @@ export default function LyricsPage() {
       isProgrammaticScroll.current = true;
       scrollToLine(currentLineIndex, "smooth");
       // Clear programmatic flag after scroll settles
-      setTimeout(() => {
+      scrollTimer = setTimeout(() => {
         isProgrammaticScroll.current = false;
       }, 600);
     }
     prevLineRef.current = currentLineIndex;
-  }, [currentLineIndex, lyrics.length, userScrolling]);
+
+    return () => {
+      if (scrollTimer) clearTimeout(scrollTimer);
+    };
+  }, [currentLineIndex, lyrics.length, userScrolling, scrollToLine]);
 
   // ---- Seek on click ----
   const handleLineClick = (index: number) => {
@@ -400,7 +435,7 @@ export default function LyricsPage() {
         "relative h-screen flex overflow-hidden",
         isFullscreen && "fixed inset-0 z-60",
       )}
-      onClick={handleUserInteraction}
+      onPointerDown={handleUserInteraction}
     >
       {/* ==============================================================
           BACKGROUND – Slowly rotating blurred album art + liquify blobs
@@ -781,7 +816,7 @@ export default function LyricsPage() {
                         : Math.min(distance * 8, 35);
 
                   return (
-                    <div key={index}>
+                    <div key={`${line.time}-${line.text}`}>
                       <motion.p
                         ref={(el) => {
                           lineRefs.current[index] = el;
@@ -819,6 +854,14 @@ export default function LyricsPage() {
                           },
                         }}
                         onClick={() => handleLineClick(index)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            handleLineClick(index);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
                       >
                         {line.text}
                       </motion.p>
@@ -841,29 +884,19 @@ export default function LyricsPage() {
 
             {!isLoading && hasLyrics && trackCredits && trackCredits.writtenBy.length > 0 && (
               <motion.div
-                className="mt-24 border-t border-white/10 pt-8"
+                className="mt-24 pt-8"
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
               >
                 <div className="mb-3 flex items-center gap-2 text-white/45">
-                  <PenLine className="size-4" />
                   <span className="text-xs font-semibold uppercase tracking-[0.18em]">
                     Written by
                   </span>
                 </div>
-                <p className="text-xl font-semibold leading-relaxed text-white/75 lg:text-2xl">
+                <p className="text-xs leading-relaxed text-white/75">
                   {trackCredits.writtenBy.join(" · ")}
                 </p>
-                <a
-                  href={trackCredits.sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-4 inline-flex items-center gap-1.5 text-xs text-white/35 transition-colors hover:text-white/60"
-                >
-                  Credits from MusicBrainz
-                  <ExternalLink className="size-3" />
-                </a>
               </motion.div>
             )}
           </div>

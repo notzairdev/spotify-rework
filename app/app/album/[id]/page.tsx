@@ -8,8 +8,6 @@ import {
   Heart,
   MoreHorizontal,
   Play,
-  ArrowLeft,
-  Clock,
   Disc3,
   Share2,
   ExternalLink,
@@ -26,6 +24,8 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { TrackContextMenu } from "@/components/context";
 import { useAlbum, useAlbumTracks } from "@/lib/spotify/hooks";
+import { invalidateSpotifyQueryCache } from "@/lib/spotify/query-cache";
+import { usePreservedPageState } from "@/lib/page-state";
 import {
   startPlayback,
   saveAlbums,
@@ -64,22 +64,25 @@ export default function AlbumPage({ params }: PageProps) {
   const { data: tracksData, isLoading: tracksLoading } = useAlbumTracks(id);
 
   const [coverColor, setCoverColor] = useState<HSL | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
+  const [isSaved, setIsSaved] = usePreservedPageState("is-saved", false);
   const [saveLoading, setSaveLoading] = useState(false);
-  const [saveChecked, setSaveChecked] = useState(false);
+  const [saveChecked, setSaveChecked] = usePreservedPageState("save-checked", false);
 
   // Extract dominant color from cover image
   useEffect(() => {
     const imageUrl = album?.images?.[0]?.url;
-    if (!imageUrl) {
-      setCoverColor(null);
-      return;
-    }
+    let cancelled = false;
+    const colorPromise = imageUrl
+      ? extractDominantColor(imageUrl)
+      : Promise.resolve(null);
 
-    extractDominantColor(imageUrl).then((color) => {
-      setCoverColor(color);
+    colorPromise.then((color) => {
+      if (!cancelled) setCoverColor(color);
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [album?.images]);
 
   // Check if album is saved in library
@@ -92,7 +95,7 @@ export default function AlbumPage({ params }: PageProps) {
         setIsSaved(saved);
       })
       .catch(() => {});
-  }, [id, saveChecked]);
+  }, [id, saveChecked, setIsSaved, setSaveChecked]);
 
   const tracks = tracksData?.items ?? [];
   const totalDuration = tracks.reduce(
@@ -105,7 +108,6 @@ export default function AlbumPage({ params }: PageProps) {
     if (!album) return;
     try {
       await startPlayback({ contextUri: `spotify:album:${album.id}` });
-      setIsPlaying(true);
     } catch (e) {
       console.error("Failed to play album:", e);
     }
@@ -118,7 +120,6 @@ export default function AlbumPage({ params }: PageProps) {
         contextUri: `spotify:album:${album.id}`,
         offset: { position: offset },
       });
-      setIsPlaying(true);
     } catch (e) {
       console.error("Failed to play track:", e);
     }
@@ -138,7 +139,8 @@ export default function AlbumPage({ params }: PageProps) {
         setIsSaved(true);
         toast.success("Added to your library");
       }
-    } catch (e) {
+      invalidateSpotifyQueryCache("user:me:saved-albums");
+    } catch {
       toast.error("Failed to update");
     } finally {
       setSaveLoading(false);
@@ -199,6 +201,7 @@ export default function AlbumPage({ params }: PageProps) {
                   src={albumImage}
                   alt={album.name}
                   fill
+                  sizes="(min-width: 768px) 22vw, 288px"
                   className="size-full object-cover"
                   priority
                 />
@@ -310,6 +313,12 @@ export default function AlbumPage({ params }: PageProps) {
                 <div
                   className="group grid grid-cols-[auto_1fr_auto] items-center gap-4 px-6 py-3 transition-colors hover:bg-muted/50 rounded-lg"
                   onClick={() => handlePlayTrack(track.uri, index)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      void handlePlayTrack(track.uri, index);
+                    }
+                  }}
                   role="button"
                   tabIndex={0}
                 >

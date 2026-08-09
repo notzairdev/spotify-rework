@@ -1,45 +1,57 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuthCallback } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function CallbackPage() {
+  return (
+    <Suspense fallback={<CallbackLoading />}>
+      <CallbackContent />
+    </Suspense>
+  );
+}
+
+function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { processCallback, isProcessing, error } = useAuthCallback();
+  const { processCallback, error } = useAuthCallback();
   const [status, setStatus] = useState<"processing" | "success" | "error">("processing");
 
   useEffect(() => {
-    const code = searchParams.get("code");
-    const state = searchParams.get("state");
-    const errorParam = searchParams.get("error");
+    let cancelled = false;
+    let redirectTimer: ReturnType<typeof setTimeout> | null = null;
 
-    // Handle Spotify error response
-    if (errorParam) {
-      setStatus("error");
-      return;
-    }
+    const completeAuthentication = async () => {
+      const code = searchParams.get("code");
+      const state = searchParams.get("state");
+      const errorParam = searchParams.get("error");
 
-    // Missing required params
-    if (!code || !state) {
-      setStatus("error");
-      return;
-    }
+      if (errorParam || !code || !state) {
+        if (!cancelled) setStatus("error");
+        return;
+      }
 
-    // Process the callback
-    processCallback(code, state)
-      .then(() => {
+      try {
+        await processCallback(code, state);
+        if (cancelled) return;
+
         setStatus("success");
-        // Redirect to home after successful login
-        setTimeout(() => {
+        redirectTimer = setTimeout(() => {
           router.push("/app/home");
         }, 1500);
-      })
-      .catch(() => {
-        setStatus("error");
-      });
+      } catch {
+        if (!cancelled) setStatus("error");
+      }
+    };
+
+    void completeAuthentication();
+
+    return () => {
+      cancelled = true;
+      if (redirectTimer) clearTimeout(redirectTimer);
+    };
   }, [searchParams, processCallback, router]);
 
   return (
@@ -63,7 +75,7 @@ export default function CallbackPage() {
               </div>
               <h2 className="text-xl font-semibold">Success!</h2>
               <p className="text-center text-muted-foreground">
-                You're now signed in. Redirecting...
+                You&apos;re now signed in. Redirecting...
               </p>
             </>
           )}
@@ -87,6 +99,14 @@ export default function CallbackPage() {
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function CallbackLoading() {
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
     </div>
   );
 }

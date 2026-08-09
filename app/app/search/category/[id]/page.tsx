@@ -1,9 +1,8 @@
 "use client";
 
 import { use } from "react";
-import { ArrowLeft, Play, Music } from "lucide-react";
+import { Play, Music } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useCategoryPlaylists, startPlayback } from "@/lib/spotify";
 
@@ -11,23 +10,22 @@ interface CategoryPageProps {
   params: Promise<{ id: string }>;
 }
 
+async function playPlaylist(uri: string) {
+  try {
+    await startPlayback({ contextUri: uri });
+  } catch (error) {
+    console.error("Failed to play:", error);
+  }
+}
+
 export default function CategoryPage({ params }: CategoryPageProps) {
   const { id } = use(params);
-  const router = useRouter();
   const { data, isLoading } = useCategoryPlaylists(id, 50);
 
   // Filter out null items (API can return nulls)
   const playlists = (data?.playlists?.items ?? []).filter(
     (p): p is NonNullable<typeof p> => p !== null && p.id !== null
   );
-
-  const handlePlayPlaylist = async (uri: string) => {
-    try {
-      await startPlayback({ contextUri: uri });
-    } catch (e) {
-      console.error("Failed to play:", e);
-    }
-  };
 
   return (
     <div className="py-24 px-6 container mx-auto animate-fade-in">
@@ -80,7 +78,7 @@ export default function CategoryPage({ params }: CategoryPageProps) {
                     className="rounded-full"
                     onClick={(e) => {
                       e.preventDefault();
-                      handlePlayPlaylist(playlist.uri);
+                      void playPlaylist(playlist.uri);
                     }}
                   >
                     <Play className="w-5 h-5" fill="currentColor" />

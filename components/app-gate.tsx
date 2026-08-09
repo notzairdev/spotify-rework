@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { isTauriContext } from "@/lib/env";
@@ -36,14 +36,19 @@ export function AppGate({ children }: AppGateProps) {
   const playerStateRef = useRef(playerState);
 
   useEffect(() => {
+    let hideTimer: ReturnType<typeof setTimeout> | null = null;
     playerStateRef.current = playerState;
     // If playback pauses entirely or track is cleared, hide island if we are minimized
     if ((!playerState?.track || !playerState?.isPlaying) && isTauriContext()) {
       emit("island-visibility", false);
-      setTimeout(() => {
+      hideTimer = setTimeout(() => {
         Window.getByLabel("island").then(island => island?.hide()).catch(console.error);
       }, 300);
     }
+
+    return () => {
+      if (hideTimer) clearTimeout(hideTimer);
+    };
   }, [playerState]);
 
   // Handle dynamic island visibility when main window is minimized
@@ -51,8 +56,10 @@ export function AppGate({ children }: AppGateProps) {
     if (!isTauriContext()) return;
 
     let unlisten: (() => void) | undefined;
+    let hideTimer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
     const setupIslandListener = async () => {
-      unlisten = await listen<boolean>("main-window-minimized", async (event) => {
+      const dispose = await listen<boolean>("main-window-minimized", async (event) => {
         const isMinimized = event.payload;
         const islandWindow = await Window.getByLabel("island");
         if (!islandWindow) return;
@@ -66,14 +73,19 @@ export function AppGate({ children }: AppGateProps) {
           // Tell the island to animate OUT
           emit("island-visibility", false);
           // Wait for animation before hiding completely
-          setTimeout(async () => {
+          if (hideTimer) clearTimeout(hideTimer);
+          hideTimer = setTimeout(async () => {
             await islandWindow.hide();
           }, 300);
         }
       });
+      if (cancelled) dispose();
+      else unlisten = dispose;
     };
-    setupIslandListener();
+    void setupIslandListener();
     return () => {
+      cancelled = true;
+      if (hideTimer) clearTimeout(hideTimer);
       unlisten?.();
     };
   }, []);

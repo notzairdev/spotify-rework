@@ -41,13 +41,18 @@ export function DynamicIsland() {
 
   // Extract color from album art
   useEffect(() => {
-    if (!albumArt) {
-      setAmbientColor(null);
-      return;
-    }
-    extractDominantColor(albumArt).then((color) => {
-      if (color) setAmbientColor(color);
+    let cancelled = false;
+    const colorPromise = albumArt
+      ? extractDominantColor(albumArt)
+      : Promise.resolve(null);
+
+    colorPromise.then((color) => {
+      if (!cancelled) setAmbientColor(color);
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [albumArt]);
 
   // Animate in on mount (liquid glass morph effect)
@@ -63,7 +68,7 @@ export function DynamicIsland() {
       className={cn(
         "fixed bottom-6 left-1/2 -translate-x-1/2 z-50",
         // Liquid glass morph animation
-        "transition-all duration-700 ease-out",
+        "transition-[width,height,border-radius,opacity,transform] duration-700 ease-out",
         isVisible 
           ? "opacity-100 scale-100 translate-y-0" 
           : "opacity-0 scale-75 translate-y-8"
@@ -72,7 +77,7 @@ export function DynamicIsland() {
       {/* Ambient glow - more subtle for lyrics view */}
       <div
         className={cn(
-          "absolute inset-0 blur-2xl -z-10 scale-125 transition-all duration-700",
+          "absolute inset-0 blur-2xl -z-10 scale-125 transition-[background-color,opacity,transform] duration-700",
           isVisible ? "opacity-40" : "opacity-0"
         )}
         style={{
@@ -90,7 +95,7 @@ export function DynamicIsland() {
           // Liquid glass effect
           "relative overflow-hidden",
           // Hover expansion
-          "transition-all duration-500 ease-out",
+          "transition-[width,height,transform] duration-500 ease-out",
           isHovered ? "px-5 py-2.5" : "px-4 py-2"
         )}
         onMouseEnter={() => setIsHovered(true)}
@@ -121,7 +126,7 @@ export function DynamicIsland() {
         <div
           className={cn(
             "flex items-center relative z-10",
-            "transition-all duration-500",
+            "transition-[width,opacity] duration-500",
             isHovered ? "gap-3" : "gap-2"
           )}
         >
@@ -132,7 +137,7 @@ export function DynamicIsland() {
               alt={track.name}
               className={cn(
                 "rounded-full object-cover shadow-lg border border-white/10",
-                "transition-all duration-500",
+                "transition-[width,height] duration-500",
                 isHovered ? "w-10 h-10" : "w-9 h-9",
                 isPlaying && "animate-[spin_8s_linear_infinite]"
               )}
@@ -146,7 +151,7 @@ export function DynamicIsland() {
           {/* Track info - only on hover */}
           <div
             className={cn(
-              "overflow-hidden transition-all duration-500",
+              "overflow-hidden transition-[width,opacity] duration-500",
               isHovered ? "w-28 opacity-100" : "w-0 opacity-0"
             )}
           >
@@ -162,6 +167,7 @@ export function DynamicIsland() {
           <div className="flex items-center gap-0.5">
             <button
               onClick={previousTrack}
+              aria-label="Previous track"
               className="p-1.5 text-white/60 hover:text-white transition-colors"
             >
               <SkipBack className="w-3.5 h-3.5" fill="currentColor" />
@@ -169,9 +175,10 @@ export function DynamicIsland() {
 
             <button
               onClick={togglePlay}
+              aria-label={isPlaying ? "Pause" : "Play"}
               className={cn(
                 "rounded-full bg-white text-black flex items-center justify-center",
-                "hover:scale-105 active:scale-95 transition-all shadow-lg",
+                "hover:scale-105 active:scale-95 transition-[width,height,transform] shadow-lg",
                 isHovered ? "w-9 h-9" : "w-8 h-8"
               )}
             >
@@ -184,6 +191,7 @@ export function DynamicIsland() {
 
             <button
               onClick={nextTrack}
+              aria-label="Next track"
               className="p-1.5 text-white/60 hover:text-white transition-colors"
             >
               <SkipForward className="w-3.5 h-3.5" fill="currentColor" />
@@ -193,12 +201,13 @@ export function DynamicIsland() {
           {/* Like button - only on hover */}
           <div
             className={cn(
-              "transition-all duration-500 overflow-hidden",
+              "transition-[width,opacity] duration-500 overflow-hidden",
               isHovered ? "w-7 opacity-100" : "w-0 opacity-0"
             )}
           >
             <button
               onClick={toggleLike}
+              aria-label={isLiked ? "Remove from Liked Songs" : "Save to Liked Songs"}
               className={cn(
                 "p-1.5",
                 isLiked
@@ -216,12 +225,13 @@ export function DynamicIsland() {
           {/* Fullscreen toggle - only on hover */}
           <div
             className={cn(
-              "transition-all duration-500 overflow-hidden",
+              "transition-[width,opacity] duration-500 overflow-hidden",
               isHovered ? "w-7 opacity-100" : "w-0 opacity-0"
             )}
           >
             <button
               onClick={toggleFullscreen}
+              aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
               className="p-1.5 text-white/60 hover:text-white"
             >
               {isFullscreen ? (
@@ -235,7 +245,7 @@ export function DynamicIsland() {
           {/* Queue - only on hover */}
           <div
             className={cn(
-              "transition-all duration-500 overflow-hidden",
+              "transition-[width,opacity] duration-500 overflow-hidden",
               isHovered ? "opacity-100 w-7" : "opacity-0 w-0"
             )}
           >

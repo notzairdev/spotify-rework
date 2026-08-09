@@ -42,12 +42,16 @@ const EMPTY_NAVIGATION_HISTORY: NavigationHistory = {
   index: -1,
 };
 
+const NAV_ITEMS = [
+  { icon: Home, label: "Home", path: "/app/home" },
+  { icon: Search, label: "Discover", path: "/app/search" },
+  { icon: Library, label: "Collection", path: "/app/library" },
+];
+
 export function Titlebar() {
   const router = useRouter();
   const pathname = usePathname();
   const { isFullscreen } = useFullscreen();
-  const { isAuthenticated } = useAuth();
-
   // Navigation history tracking
   const [navigationHistory, setNavigationHistory] = useState<NavigationHistory>(
     EMPTY_NAVIGATION_HISTORY
@@ -67,13 +71,12 @@ export function Titlebar() {
     if (EXCLUDED_PATHS.includes(pathname)) return;
 
     const updateTimer = window.setTimeout(() => {
-      setNavigationHistory((previousHistory) => {
-        // A titlebar traversal already moved the index before the route changed.
-        if (isNavigatingRef.current) {
-          isNavigatingRef.current = false;
-          return previousHistory;
-        }
+      if (isNavigatingRef.current) {
+        isNavigatingRef.current = false;
+        return;
+      }
 
+      setNavigationHistory((previousHistory) => {
         const truncatedEntries = previousHistory.entries.slice(
           0,
           previousHistory.index + 1
@@ -124,16 +127,10 @@ export function Titlebar() {
     router.push("/");
   };
 
-  const navItems = [
-    { icon: Home, label: "Home", path: "/app/home" },
-    { icon: Search, label: "Discover", path: "/app/search" },
-    { icon: Library, label: "Collection", path: "/app/library" },
-  ];
-
   return (
     <header
       className={cn(
-        "fixed top-0 left-0 right-0 z-50 select-none transition-all duration-500",
+        "fixed top-0 left-0 right-0 z-50 select-none transition-colors duration-500",
         isFullscreen && "bg-transparent",
       )}
     >
@@ -150,14 +147,14 @@ export function Titlebar() {
       />
       <div
         className={cn(
-          "h-12 flex items-center px-4 bg-transparent transition-all duration-500",
+          "h-12 flex items-center px-4 bg-transparent transition-[height] duration-500",
           isFullscreen && "h-10",
         )}
         onMouseDown={drag}
         data-tauri-drag-region
       >
         {/* Left: Branding - always visible */}
-        <div className="flex items-center gap-4 w-48 transition-all duration-500">
+        <div className="flex items-center gap-4 w-48 transition-opacity duration-500">
           <div className="flex items-center gap-2">
             <img
               src="/svgl/spotify.svg"
@@ -170,7 +167,7 @@ export function Titlebar() {
         {/* Center: Navigation as minimal tabs - hidden in fullscreen */}
         <nav
           className={cn(
-            "flex-1 flex items-center justify-center gap-4 transition-all duration-500",
+            "flex-1 flex items-center justify-center gap-4 transition-opacity duration-500",
             (isFullscreen || pathname === "/") &&
               "opacity-0 pointer-events-none",
           )}
@@ -182,6 +179,7 @@ export function Titlebar() {
               size="icon"
               className="h-8 w-8 rounded-full hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent"
               onClick={handleGoBack}
+              aria-label="Go back"
               disabled={!canGoBack}
               onMouseDown={(e) => e.stopPropagation()}
             >
@@ -192,6 +190,7 @@ export function Titlebar() {
               size="icon"
               className="h-8 w-8 rounded-full hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent"
               onClick={handleGoForward}
+              aria-label="Go forward"
               disabled={!canGoForward}
               onMouseDown={(e) => e.stopPropagation()}
             >
@@ -200,7 +199,7 @@ export function Titlebar() {
           </div>
 
           <div className="flex items-center bg-secondary/30 rounded-full p-1">
-            {navItems.map((item) => {
+            {NAV_ITEMS.map((item) => {
               const isActive = pathname === item.path;
               return (
                 <Link
@@ -208,7 +207,7 @@ export function Titlebar() {
                   href={item.path}
                   onMouseDown={(e) => e.stopPropagation()}
                   className={cn(
-                    "relative flex items-center gap-2 px-5 py-1.5 rounded-full text-xs font-medium transition-all duration-300",
+                    "relative flex items-center gap-2 px-5 py-1.5 rounded-full text-xs font-medium transition-colors duration-300",
                     isActive
                       ? "bg-foreground text-background"
                       : "text-dim hover:text-foreground",
@@ -231,10 +230,11 @@ export function Titlebar() {
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  "h-8 px-2 rounded-full hover:bg-white/5 gap-1.5 transition-all duration-500",
+                  "h-8 px-2 rounded-full hover:bg-white/5 gap-1.5 transition-[opacity,background-color] duration-500",
                   isFullscreen && "opacity-0 pointer-events-none",
                 )}
                 onMouseDown={(e) => e.stopPropagation()}
+                aria-label="Open user menu"
               >
                 <div className="w-6 h-6 rounded-full border flex items-center justify-center">
                   <span className="text-[10px] font-bold text-foreground">
@@ -285,6 +285,7 @@ export function Titlebar() {
                 <button
                   className="w-7 h-7 flex items-center justify-center text-dim hover:text-foreground transition-colors"
                   onClick={minimize}
+                  aria-label="Minimize window"
                   onMouseDown={(e) => e.stopPropagation()}
                 >
                   <Minus className="w-3 h-3" />
@@ -292,6 +293,7 @@ export function Titlebar() {
                 <button
                   className="w-7 h-7 flex items-center justify-center text-dim hover:text-destructive transition-colors"
                   onClick={close}
+                  aria-label="Close window"
                   onMouseDown={(e) => e.stopPropagation()}
                 >
                   <X className="w-3.5 h-3.5" />

@@ -67,6 +67,9 @@ export function PlayerBar() {
   const track = state?.track;
   const albumArt = track?.album.images[0]?.url;
   const isPlaying = state?.isPlaying ?? false;
+  const duration = state?.duration ?? 0;
+  const position = state?.position ?? 0;
+  const repeatMode = state?.repeatMode ?? "off";
 
   // Extract ambient color from album art
   useEffect(() => {
@@ -94,11 +97,11 @@ export function PlayerBar() {
   useEffect(() => {
     // Don't show toast on lyrics page or login
     if (pathname === "/lyrics" || pathname === "/" || pathname === "/callback" || pathname === "/app/callback") return;
-    if (!state?.track || !state.duration || !state.isPlaying) return;
-    if (state.repeatMode === "track") return;
+    if (!trackId || !duration || !isPlaying) return;
+    if (repeatMode === "track") return;
 
-    const remaining = state.duration - (state.position ?? 0);
-    const currentTrackId = state.track.id;
+    const remaining = duration - position;
+    const currentTrackId = trackId;
 
     if (
       remaining <= 15000 &&
@@ -115,7 +118,7 @@ export function PlayerBar() {
           const nextTrack = normalizePlaybackQueue(
             freshQueue.queue,
             currentTrackId,
-            state.repeatMode
+            repeatMode
           )[0];
 
           if (!nextTrack) return;
@@ -131,11 +134,11 @@ export function PlayerBar() {
     }
   }, [
     pathname,
-    state?.position,
-    state?.duration,
-    state?.track?.id,
-    state?.isPlaying,
-    state?.repeatMode,
+    position,
+    duration,
+    trackId,
+    isPlaying,
+    repeatMode,
   ]);
 
   const handleSeek = (value: number[]) => {
@@ -203,7 +206,7 @@ export function PlayerBar() {
   return (
     <div
       className={cn(
-        "fixed bottom-6 left-1/2 isolate -translate-x-1/2 z-50 transition-all duration-500",
+        "fixed bottom-6 left-1/2 isolate -translate-x-1/2 z-50 transition-[width,height,opacity,transform] duration-500",
         track
           ? "opacity-100 translate-y-0"
           : "opacity-0 translate-y-4 pointer-events-none",
@@ -211,7 +214,7 @@ export function PlayerBar() {
     >
       {/* Ambient glow */}
       <div
-        className="absolute inset-0 -z-10 scale-150 bg-transparent opacity-40 blur-3xl transition-all duration-700"
+        className="absolute inset-0 -z-10 scale-150 bg-transparent opacity-40 blur-3xl transition-[opacity,transform] duration-700"
         style={{
           background: ambientColor
             ? `radial-gradient(ellipse, hsl(${hslToString(ambientColor)} / 0.7), transparent 70%)`
@@ -284,9 +287,10 @@ export function PlayerBar() {
           {track && (
             <button
               onClick={toggleLike}
+              aria-label={isLiked ? "Remove from Liked Songs" : "Save to Liked Songs"}
               disabled={likeLoading}
               className={cn(
-                "p-2 rounded-full transition-all",
+                "p-2 rounded-full transition-colors",
                 isLiked
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground",
@@ -302,6 +306,7 @@ export function PlayerBar() {
           {/* Shuffle */}
           <button
             onClick={toggleShuffle}
+            aria-label={state?.shuffle ? "Disable shuffle" : "Enable shuffle"}
             className={cn(
               "p-2 rounded-full transition-colors",
               state?.shuffle
@@ -316,6 +321,7 @@ export function PlayerBar() {
           <div className="flex items-center gap-1">
             <button
               onClick={previousTrack}
+              aria-label="Previous track"
               className="p-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <SkipBack className="w-4 h-4" fill="currentColor" />
@@ -323,7 +329,8 @@ export function PlayerBar() {
 
             <button
               onClick={togglePlay}
-              className="w-11 h-11 rounded-full bg-foreground text-background flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg"
+              aria-label={isPlaying ? "Pause" : "Play"}
+              className="w-11 h-11 rounded-full bg-foreground text-background flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shadow-lg"
             >
               {isPlaying ? (
                 <Pause className="w-5 h-5" fill="currentColor" />
@@ -334,6 +341,7 @@ export function PlayerBar() {
 
             <button
               onClick={nextTrack}
+              aria-label="Next track"
               className="p-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <SkipForward className="w-4 h-4" fill="currentColor" />
@@ -380,6 +388,7 @@ export function PlayerBar() {
             {lyricsAvailable ? (
               <Link
                 href="/lyrics"
+                aria-label="Open lyrics"
                 className="p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors"
               >
                 <Mic2 className="w-4 h-4" />
@@ -387,6 +396,7 @@ export function PlayerBar() {
             ) : (
               <button
                 disabled
+                aria-label="Lyrics unavailable"
                 className="p-2 rounded-full text-muted-foreground/30 cursor-not-allowed"
               >
                 <Mic2 className="w-4 h-4" />
@@ -404,6 +414,7 @@ export function PlayerBar() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setVolume(state?.volume === 0 ? 0.5 : 0)}
+              aria-label={state?.volume === 0 ? "Unmute" : "Mute"}
               className="p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors shrink-0"
             >
               {state?.volume === 0 ? (

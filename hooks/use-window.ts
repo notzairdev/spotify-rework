@@ -1,42 +1,42 @@
-import { getCurrentWindow, Window } from "@tauri-apps/api/window";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
-export const useWindow = () => {
-  const handleMinimize = async () => {
-    const appWindow = getCurrentWindow();
-    await appWindow?.minimize();
-  };
+async function handleMinimize() {
+  const appWindow = getCurrentWindow();
+  await appWindow?.minimize();
+}
 
-  const handleMaximize = async () => {
-    const appWindow = getCurrentWindow();
-    const isMaximized = await appWindow.isMaximized();
+async function handleMaximize() {
+  const appWindow = getCurrentWindow();
+  const isMaximized = await appWindow.isMaximized();
 
-    if (isMaximized) {
-      await appWindow.unmaximize();
-    } else {
-      await appWindow.maximize();
-    }
-  };
+  if (isMaximized) {
+    await appWindow.unmaximize();
+  } else {
+    await appWindow.maximize();
+  }
+}
 
-  const handleClose = async () => {
-    const appWindow = getCurrentWindow();
-    await appWindow?.close();
-  };
+async function handleClose() {
+  const appWindow = getCurrentWindow();
+  await appWindow?.close();
+}
 
-  const handleDestroy = async () => {
-    const appWindow = getCurrentWindow();
-    await appWindow?.destroy();
-  };
+async function handleDestroy() {
+  const appWindow = getCurrentWindow();
+  await appWindow?.destroy();
+}
 
-  const startDragging = async () => {
-    const appWindow = getCurrentWindow();
-    await appWindow?.startDragging();
-  };
+async function startDragging() {
+  const appWindow = getCurrentWindow();
+  await appWindow?.startDragging();
+}
 
-  return {
-    handleMinimize,
-    handleMaximize,
-    handleClose,
-    handleDestroy,
-    startDragging,
-  };
+const WINDOW_CONTROLS = {
+  handleMinimize,
+  handleMaximize,
+  handleClose,
+  handleDestroy,
+  startDragging,
 };
+
+export const useWindow = () => WINDOW_CONTROLS;

@@ -33,6 +33,10 @@ const deviceIcons: Record<string, React.ElementType> = {
   automobile: Car,
 };
 
+function getDeviceIcon(type: string) {
+  return deviceIcons[type.toLowerCase()] ?? MonitorSpeaker;
+}
+
 export function DevicePopover({ className, triggerClassName }: DevicePopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [hasOpened, setHasOpened] = useState(false);
@@ -65,15 +69,10 @@ export function DevicePopover({ className, triggerClassName }: DevicePopoverProp
     }
   };
 
-  const getDeviceIcon = (type: string) => {
-    const Icon = deviceIcons[type.toLowerCase()] ?? MonitorSpeaker;
-    return Icon;
-  };
-
   return (
     <Popover open={isOpen} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <button className={cn("p-2.5 rounded-full text-muted-foreground/50 hover:text-muted-foreground transition-colors", triggerClassName)}>
+        <button aria-label="Playback devices" className={cn("p-2.5 rounded-full text-muted-foreground/50 hover:text-muted-foreground transition-colors", triggerClassName)}>
           <MonitorSpeaker className="w-4 h-4" />
         </button>
       </PopoverTrigger>

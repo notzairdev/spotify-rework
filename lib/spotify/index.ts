@@ -87,3 +87,8 @@ export {
 
 // Track like hook
 export { useTrackLike } from "./use-track-like";
+
+export {
+  clearSpotifyQueryCache,
+  invalidateSpotifyQueryCache,
+} from "./query-cache";

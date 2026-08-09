@@ -14,6 +14,24 @@ import {
 } from "@/lib/spotify/hooks";
 import { startPlayback } from "@/lib/spotify/api";
 
+async function playArtist(artistId: string) {
+  try {
+    await startPlayback({ contextUri: `spotify:artist:${artistId}` });
+  } catch (error) {
+    console.error("Failed to play artist:", error);
+  }
+}
+
+async function playPlaylist(event: React.MouseEvent, uri: string) {
+  event.preventDefault();
+  event.stopPropagation();
+  try {
+    await startPlayback({ contextUri: uri });
+  } catch (error) {
+    console.error("Failed to play playlist:", error);
+  }
+}
+
 export default function ProfilePage() {
   const { data: user, isLoading: userLoading } = useCurrentUser();
   const { data: topArtists, isLoading: artistsLoading } = useTopArtists(
@@ -26,26 +44,6 @@ export default function ProfilePage() {
   const publicPlaylists = playlists?.items?.filter((p) => p.public) ?? [];
   const followersCount = user?.followers?.total ?? 0;
   const followingCount = followedData?.artists?.items?.length ?? 0;
-
-  const handlePlayArtist = async (e: React.MouseEvent, artistId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      await startPlayback({ contextUri: `spotify:artist:${artistId}` });
-    } catch (err) {
-      console.error("Failed to play artist:", err);
-    }
-  };
-
-  const handlePlayPlaylist = async (e: React.MouseEvent, uri: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      await startPlayback({ contextUri: uri });
-    } catch (err) {
-      console.error("Failed to play playlist:", err);
-    }
-  };
 
   if (userLoading) {
     return (
@@ -68,6 +66,7 @@ export default function ProfilePage() {
               src={userImage}
               alt={user?.display_name ?? "Profile"}
               fill
+              sizes="256px"
               className="object-cover"
             />
           ) : (
@@ -127,10 +126,11 @@ export default function ProfilePage() {
         ) : topArtists?.items?.length ? (
           <div className="grid grid-cols-6 gap-4 sm:grid-cols-7 md:grid-cols-8">
             {topArtists.items.map((artist) => (
-              <div
+              <button
+                type="button"
                 key={artist.id}
-                className="group cursor-pointer text-center"
-                onClick={(e) => handlePlayArtist(e, artist.id)}
+                className="group w-full cursor-pointer text-center"
+                onClick={() => void playArtist(artist.id)}
               >
                 <div className="relative mx-auto aspect-square overflow-hidden rounded-full transition-transform group-hover:scale-105">
                   {artist.images?.[0]?.url ? (
@@ -138,6 +138,7 @@ export default function ProfilePage() {
                       src={artist.images[0].url}
                       alt={artist.name}
                       fill
+                      sizes="(min-width: 1024px) 12.5vw, (min-width: 640px) 20vw, 50vw"
                       className="object-cover"
                     />
                   ) : (
@@ -146,14 +147,14 @@ export default function ProfilePage() {
                     </div>
                   )}
                   <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-                    <Button size="icon" className="rounded-full">
+                    <span className="inline-flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground">
                       <Play className="size-5 fill-current" />
-                    </Button>
+                    </span>
                   </div>
                 </div>
                 <h3 className="mt-2 truncate font-medium">{artist.name}</h3>
                 <p className="text-sm text-muted-foreground">Artist</p>
-              </div>
+              </button>
             ))}
           </div>
         ) : (
@@ -189,6 +190,7 @@ export default function ProfilePage() {
                       src={playlist.images[0].url}
                       alt={playlist.name}
                       fill
+                      sizes="(min-width: 1024px) 12.5vw, (min-width: 640px) 20vw, 50vw"
                       className="object-cover"
                     />
                   ) : (
@@ -200,7 +202,7 @@ export default function ProfilePage() {
                     <Button
                       size="icon"
                       className="rounded-full"
-                      onClick={(e) => handlePlayPlaylist(e, playlist.uri)}
+                      onClick={(e) => void playPlaylist(e, playlist.uri)}
                     >
                       <Play className="size-5 fill-current" />
                     </Button>

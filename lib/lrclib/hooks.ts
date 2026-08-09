@@ -4,7 +4,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useSpotifyPlayer } from "@/lib/spotify";
 import {
   getLyrics,
@@ -31,57 +31,71 @@ export function useLyrics(): UseLyricsResult {
   const [lyricsData, setLyricsData] = useState<LRCLibLyrics | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastTrackId, setLastTrackId] = useState<string | null>(null);
+  const lastTrackIdRef = useRef<string | null>(null);
+  const trackId = state?.track?.id;
+  const trackName = state?.track?.name;
+  const artistName = state?.track?.artists[0] ?? "";
+  const albumName = state?.track?.album.name;
+  const durationSeconds = state?.duration
+    ? Math.round(state.duration / 1000)
+    : undefined;
+  const syncedLyrics = lyricsData?.syncedLyrics;
+  const playbackPosition = state?.position ?? 0;
 
   // Fetch lyrics when track changes
   useEffect(() => {
-    const track = state?.track;
-    
-    if (!track || track.id === lastTrackId) {
+    if (!trackId || !trackName || !albumName || trackId === lastTrackIdRef.current) {
       return;
     }
 
-    setLastTrackId(track.id);
+    lastTrackIdRef.current = trackId;
     setIsLoading(true);
     setError(null);
     setLyricsData(null);
 
+    let cancelled = false;
     const fetchLyrics = async () => {
       try {
         const result = await getLyrics({
-          trackName: track.name,
-          artistName: track.artists[0] || "",
-          albumName: track.album.name,
-          duration: state.duration ? Math.round(state.duration / 1000) : undefined,
+          trackName,
+          artistName,
+          albumName,
+          duration: durationSeconds,
         });
 
+        if (cancelled) return;
         if (result) {
           setLyricsData(result);
         } else {
           setError("No lyrics found for this track");
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to fetch lyrics");
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Failed to fetch lyrics");
+        }
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
-    fetchLyrics();
-  }, [state?.track?.id, state?.track?.name, state?.track?.artists, state?.track?.album.name, state?.duration, lastTrackId]);
+    void fetchLyrics();
+    return () => {
+      cancelled = true;
+    };
+  }, [trackId, trackName, artistName, albumName, durationSeconds]);
 
   // Parse synced lyrics
   const lyrics = useMemo(() => {
-    if (!lyricsData?.syncedLyrics) return [];
-    return parseSyncedLyrics(lyricsData.syncedLyrics);
-  }, [lyricsData?.syncedLyrics]);
+    if (!syncedLyrics) return [];
+    return parseSyncedLyrics(syncedLyrics);
+  }, [syncedLyrics]);
 
   // Calculate current line index based on playback position
   // Add a small lookahead (0.3s) so lyrics appear slightly before they're sung
   const currentLineIndex = useMemo(() => {
-    if (!lyrics.length || !state?.position) return 0;
+    if (!lyrics.length || !playbackPosition) return 0;
     
-    const positionSeconds = (state.position / 1000) + 0.3; // 300ms lookahead
+    const positionSeconds = (playbackPosition / 1000) + 0.3; // 300ms lookahead
     
     // Find the last line that has started (or is about to start)
     for (let i = lyrics.length - 1; i >= 0; i--) {
@@ -91,7 +105,7 @@ export function useLyrics(): UseLyricsResult {
     }
     
     return 0;
-  }, [lyrics, state?.position]);
+  }, [lyrics, playbackPosition]);
 
   return {
     lyrics,

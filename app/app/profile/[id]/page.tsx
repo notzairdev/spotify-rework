@@ -4,7 +4,7 @@ import { use } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Play, Music } from "lucide-react";
+import { Play, Music } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -13,6 +13,16 @@ import { startPlayback } from "@/lib/spotify/api";
 
 interface PageProps {
   params: Promise<{ id: string }>;
+}
+
+async function playPlaylist(event: React.MouseEvent, uri: string) {
+  event.preventDefault();
+  event.stopPropagation();
+  try {
+    await startPlayback({ contextUri: uri });
+  } catch (error) {
+    console.error("Failed to play playlist:", error);
+  }
 }
 
 export default function UserProfilePage({ params }: PageProps) {
@@ -25,16 +35,6 @@ export default function UserProfilePage({ params }: PageProps) {
 
   // If viewing own profile, redirect to /profile
   const isOwnProfile = currentUser?.id === id;
-
-  const handlePlayPlaylist = async (e: React.MouseEvent, uri: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      await startPlayback({ contextUri: uri });
-    } catch (err) {
-      console.error("Failed to play playlist:", err);
-    }
-  };
 
   if (userLoading) {
     return (
@@ -70,6 +70,7 @@ export default function UserProfilePage({ params }: PageProps) {
               src={userImage}
               alt={user?.display_name ?? "Profile"}
               fill
+              sizes="256px"
               className="object-cover"
             />
           ) : (
@@ -135,6 +136,7 @@ export default function UserProfilePage({ params }: PageProps) {
                       src={playlist.images[0].url}
                       alt={playlist.name}
                       fill
+                      sizes="(min-width: 1024px) 12.5vw, (min-width: 640px) 20vw, 50vw"
                       className="object-cover"
                     />
                   ) : (
@@ -146,7 +148,7 @@ export default function UserProfilePage({ params }: PageProps) {
                     <Button
                       size="icon"
                       className="rounded-full"
-                      onClick={(e) => handlePlayPlaylist(e, playlist.uri)}
+                      onClick={(e) => void playPlaylist(e, playlist.uri)}
                     >
                       <Play className="size-5 fill-current" />
                     </Button>

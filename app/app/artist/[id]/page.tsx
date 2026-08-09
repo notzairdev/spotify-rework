@@ -13,7 +13,6 @@ import {
   Users,
   Music,
   Disc3,
-  BookOpenText,
   ExternalLink,
 } from "lucide-react";
 
@@ -21,7 +20,6 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -60,6 +58,24 @@ function formatFollowers(count: number): string {
     return `${(count / 1000).toFixed(1)}K`;
   }
   return count.toString();
+}
+
+async function playTrack(uri: string) {
+  try {
+    await startPlayback({ uris: [uri] });
+  } catch (error) {
+    console.error("Failed to play track:", error);
+  }
+}
+
+async function playAlbum(event: React.MouseEvent, albumId: string) {
+  event.preventDefault();
+  event.stopPropagation();
+  try {
+    await startPlayback({ contextUri: `spotify:album:${albumId}` });
+  } catch (error) {
+    console.error("Failed to play album:", error);
+  }
 }
 
 type DiscographyCategory = "album" | "ep" | "single" | "compilation";
@@ -203,24 +219,6 @@ export default function ArtistPage({ params }: PageProps) {
     }
   };
 
-  const handlePlayTrack = async (uri: string) => {
-    try {
-      await startPlayback({ uris: [uri] });
-    } catch (e) {
-      console.error("Failed to play track:", e);
-    }
-  };
-
-  const handlePlayAlbum = async (e: React.MouseEvent, albumId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      await startPlayback({ contextUri: `spotify:album:${albumId}` });
-    } catch (err) {
-      console.error("Failed to play album:", err);
-    }
-  };
-
   if (artistLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -266,6 +264,7 @@ export default function ArtistPage({ params }: PageProps) {
                 src={artistImage}
                 alt={artist.name}
                 fill
+                sizes="(min-width: 768px) 224px, 192px"
                 className="object-cover"
                 priority
               />
@@ -421,7 +420,13 @@ export default function ArtistPage({ params }: PageProps) {
               >
                 <div
                   className="group flex items-center gap-4 rounded-lg p-3 transition-colors hover:bg-muted/50"
-                  onClick={() => handlePlayTrack(track.uri)}
+                  onClick={() => void playTrack(track.uri)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      void playTrack(track.uri);
+                    }
+                  }}
                   role="button"
                   tabIndex={0}
                 >
@@ -552,6 +557,7 @@ export default function ArtistPage({ params }: PageProps) {
                       src={album.images[0].url}
                       alt={album.name}
                       fill
+                      sizes="(min-width: 1280px) 12.5vw, (min-width: 768px) 25vw, 50vw"
                       className="object-cover"
                     />
                   ) : (
@@ -563,7 +569,7 @@ export default function ArtistPage({ params }: PageProps) {
                     <Button
                       size="icon"
                       className="rounded-full"
-                      onClick={(e) => handlePlayAlbum(e, album.id)}
+                      onClick={(e) => void playAlbum(e, album.id)}
                     >
                       <Play className="size-5 fill-current" />
                     </Button>
@@ -608,6 +614,7 @@ export default function ArtistPage({ params }: PageProps) {
                         src={album.images[0].url}
                         alt={album.name}
                         fill
+                        sizes="144px"
                         className="object-cover"
                       />
                     ) : (
@@ -619,7 +626,7 @@ export default function ArtistPage({ params }: PageProps) {
                       <Button
                         size="icon"
                         className="rounded-full"
-                        onClick={(e) => handlePlayAlbum(e, album.id)}
+                        onClick={(e) => void playAlbum(e, album.id)}
                       >
                         <Play className="size-5 fill-current" />
                       </Button>
@@ -659,6 +666,7 @@ export default function ArtistPage({ params }: PageProps) {
                         src={relatedArtist.images[0].url}
                         alt={relatedArtist.name}
                         fill
+                        sizes="128px"
                         className="object-cover"
                       />
                     ) : (

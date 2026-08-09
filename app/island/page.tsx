@@ -4,50 +4,80 @@ import { useEffect, useState } from "react";
 import { getCurrentWindow, Window, LogicalSize, LogicalPosition, currentMonitor } from "@tauri-apps/api/window";
 import { listen, emit } from "@tauri-apps/api/event";
 import { Maximize2, SkipBack, SkipForward, Play, Pause } from "lucide-react";
-import { extractDominantColor, hslToString, type HSL } from "@/lib/utils/color-extractor";
 import { cn } from "@/lib/utils";
 import type { PlaybackState } from "@/lib/spotify/player-provider";
+
+const togglePlay = () => emit("island-play-pause");
+const nextTrack = () => emit("island-next");
+const previousTrack = () => emit("island-prev");
+
+function formatTime(ms: number) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+async function restoreMainWindow() {
+  try {
+    const mainWindow = await Window.getByLabel("main");
+    if (mainWindow) {
+      await mainWindow.unminimize();
+      await mainWindow.setFocus();
+    }
+    await getCurrentWindow().hide();
+  } catch (err) {
+    console.error(err);
+  }
+}
 
 export default function IslandPage() {
   const [state, setState] = useState<PlaybackState | null>(() => {
     if (typeof window !== "undefined") {
       try {
-        const cached = localStorage.getItem("spotify-rework-island-state");
+        const cached = localStorage.getItem("spotify-rework-island-state:v1");
         if (cached) return JSON.parse(cached);
       } catch {}
     }
     return null;
   });
-  const [ambientColor, setAmbientColor] = useState<HSL | null>(null);
   const [visible, setVisible] = useState(false);
   const [progressMs, setProgressMs] = useState<number>(0);
 
   // Sync state from the main window using Tauri events
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    let unlistenVis: (() => void) | undefined;
+    const unlistens: (() => void)[] = [];
+    let disposed = false;
 
     const connectState = async () => {
-      unlisten = await listen<PlaybackState>("spotify-player-state", (event) => {
-        setState(event.payload);
-        if (event.payload?.position !== undefined) {
-          setProgressMs(event.payload.position);
+      try {
+        const listeners = await Promise.all([
+          listen<PlaybackState>("spotify-player-state", (event) => {
+            setState(event.payload);
+            if (event.payload?.position !== undefined) {
+              setProgressMs(event.payload.position);
+            }
+          }),
+          listen<boolean>("island-visibility", (event) => {
+            setVisible(event.payload);
+          }),
+        ]);
+
+        if (disposed) {
+          listeners.forEach((unlisten) => unlisten());
+        } else {
+          unlistens.push(...listeners);
         }
-      });
-      unlistenVis = await listen<boolean>("island-visibility", (event) => {
-        setVisible(event.payload);
-      });
+      } catch (error) {
+        console.error("Failed to connect island events:", error);
+      }
     };
-    connectState();
+    void connectState();
     return () => {
-      unlisten?.();
-      unlistenVis?.();
+      disposed = true;
+      unlistens.forEach((unlisten) => unlisten());
     };
   }, []);
-
-  const togglePlay = () => emit("island-play-pause");
-  const nextTrack = () => emit("island-next");
-  const previousTrack = () => emit("island-prev");
 
   const track = state?.track;
   const albumArt = track?.album.images?.[0]?.url;
@@ -62,27 +92,9 @@ export default function IslandPage() {
     return () => clearInterval(interval);
   }, [isPlaying]);
 
-  // Format time utility
-  const formatTime = (ms: number) => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-  };
-
   const duration = state?.duration || 1;
   const remainingParams = formatTime(duration - progressMs);
   const currentParams = formatTime(progressMs);
-
-  useEffect(() => {
-    if (!albumArt) {
-      setAmbientColor(null);
-      return;
-    }
-    extractDominantColor(albumArt).then((color) => {
-      if (color) setAmbientColor(color);
-    });
-  }, [albumArt]);
 
   // Automatically center the island window at the very top of the monitor
   useEffect(() => {
@@ -109,19 +121,6 @@ export default function IslandPage() {
     };
     setupIsland();
   }, []);
-
-  const restoreMainWindow = async () => {
-    try {
-      const mainWindow = await Window.getByLabel("main");
-      if (mainWindow) {
-        await mainWindow.unminimize();
-        await mainWindow.setFocus();
-      }
-      await getCurrentWindow().hide();
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
   if (!track) {
     return null; // Skip rendering if no playback
@@ -159,16 +158,16 @@ export default function IslandPage() {
 
       {/* Controls - visible on hover, replace the times */}
       <div className="absolute left-16 right-4 top-0 bottom-0 flex justify-center items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 backdrop-blur-sm">
-        <button onClick={previousTrack} className="text-white/70 hover:text-white p-1">
+        <button onClick={previousTrack} aria-label="Previous track" className="text-white/70 hover:text-white p-1">
           <SkipBack size={14} />
         </button>
-        <button onClick={togglePlay} className="text-white hover:scale-105 transition-transform p-1">
+        <button onClick={togglePlay} aria-label={isPlaying ? "Pause" : "Play"} className="text-white hover:scale-105 transition-transform p-1">
           {isPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
         </button>
-        <button onClick={nextTrack} className="text-white/70 hover:text-white p-1">
+        <button onClick={nextTrack} aria-label="Next track" className="text-white/70 hover:text-white p-1">
           <SkipForward size={14} />
         </button>
-        <button onClick={restoreMainWindow} className="text-white/50 hover:text-white p-1" title="Restore">
+        <button onClick={restoreMainWindow} aria-label="Restore main window" className="text-white/50 hover:text-white p-1" title="Restore">
           <Maximize2 size={12} />
         </button>
       </div>

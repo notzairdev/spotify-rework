@@ -7,7 +7,6 @@ import {
   Share2,
   ExternalLink,
   User,
-  Heart,
   Disc3,
   Plus,
 } from "lucide-react";
@@ -22,7 +21,13 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { getMyPlaylists, startPlayback, addTracksToPlaylist, addToQueue } from "@/lib/spotify";
+import {
+  getMyPlaylists,
+  startPlayback,
+  addTracksToPlaylist,
+  addToQueue,
+  invalidateSpotifyQueryCache,
+} from "@/lib/spotify";
 import { toast } from "sonner";
 
 interface AlbumContextMenuProps {
@@ -37,20 +42,22 @@ interface AlbumContextMenuProps {
 }
 
 // Shared cache for playlists
-let playlistsCache: { items: any[] } | null = null;
-let playlistsFetchPromise: Promise<any> | null = null;
+type PlaylistPage = Awaited<ReturnType<typeof getMyPlaylists>>;
+
+let playlistsCache: PlaylistPage | null = null;
+let playlistsFetchPromise: Promise<PlaylistPage> | null = null;
 
 export function AlbumContextMenu({
   children,
-  albumId,
   albumUri,
   albumName,
   artistId,
-  artistName,
   spotifyUrl,
   trackUris = [],
 }: AlbumContextMenuProps) {
-  const [playlists, setPlaylists] = useState<any[] | null>(playlistsCache?.items ?? null);
+  const [playlists, setPlaylists] = useState<PlaylistPage["items"] | null>(
+    playlistsCache?.items ?? null,
+  );
   const [isPlaying, setIsPlaying] = useState(false);
   const dataFetchedRef = useRef(false);
 
@@ -82,7 +89,7 @@ export function AlbumContextMenu({
       toast.success("Playing", {
         description: albumName,
       });
-    } catch (e) {
+    } catch {
       toast.error("Failed to play album");
     } finally {
       setIsPlaying(false);
@@ -96,10 +103,11 @@ export function AlbumContextMenu({
     }
     try {
       await addTracksToPlaylist(playlistId, trackUris);
+      invalidateSpotifyQueryCache(`playlist:${playlistId}`);
       toast.success(`Added ${trackUris.length} tracks to ${playlistName}`, {
         description: albumName,
       });
-    } catch (e) {
+    } catch {
       toast.error("Failed to add to playlist");
     }
   };
@@ -116,7 +124,7 @@ export function AlbumContextMenu({
       toast.success(`Added ${trackUris.length} tracks to queue`, {
         description: albumName,
       });
-    } catch (e) {
+    } catch {
       toast.error("Failed to add to queue");
     }
   };
