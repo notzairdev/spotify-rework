@@ -333,11 +333,8 @@ export default function ArtistPage({ params }: PageProps) {
       {biography && (
         <Dialog open={biographyOpen} onOpenChange={setBiographyOpen}>
           <DialogContent className="w-[min(46rem,calc(100vw-2rem))] grid-rows-[auto_minmax(0,1fr)_auto]">
-            <DialogHeader className="border-b border-border/70 px-7 py-6 pr-16">
+            <DialogHeader className="px-7 py-6 pr-16">
               <div className="flex items-center gap-3">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <BookOpenText className="size-5" />
-                </div>
                 <div className="min-w-0">
                   <DialogDescription className="text-xs font-medium uppercase tracking-[0.18em]">
                     About the artist
@@ -347,7 +344,7 @@ export default function ArtistPage({ params }: PageProps) {
               </div>
             </DialogHeader>
 
-            <div className="overflow-y-auto px-7 py-6">
+            <div className="scrollbar-thin overflow-y-auto px-7 py-6">
               {(biography.genre || biography.style || biography.mood) && (
                 <div className="mb-6 flex flex-wrap gap-2">
                   {[biography.genre, biography.style, biography.mood]
@@ -367,7 +364,7 @@ export default function ArtistPage({ params }: PageProps) {
               </p>
             </div>
 
-            <DialogFooter className="justify-between border-t border-border/70 px-7 py-4">
+            <DialogFooter className="justify-between px-7 py-4">
               <a
                 href={biography.sourceUrl}
                 target="_blank"
@@ -377,9 +374,6 @@ export default function ArtistPage({ params }: PageProps) {
                 Information from TheAudioDB
                 <ExternalLink className="size-3" />
               </a>
-              <DialogClose className="inline-flex h-9 items-center justify-center rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90">
-                Done
-              </DialogClose>
             </DialogFooter>
           </DialogContent>
         </Dialog>

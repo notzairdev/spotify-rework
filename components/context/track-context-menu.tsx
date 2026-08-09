@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/context-menu";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -266,11 +265,8 @@ export function TrackContextMenu({
 
       <Dialog open={creditsOpen} onOpenChange={setCreditsOpen}>
         <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto]">
-          <DialogHeader className="border-b border-border/70 px-6 py-5 pr-16 text-left">
+          <DialogHeader className="px-6 py-5 pr-16 text-left">
             <div className="flex items-center gap-3">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <BookOpenText className="size-5" />
-              </div>
               <div className="min-w-0">
                 <DialogTitle className="truncate text-lg font-semibold">
                   {trackName}
@@ -314,7 +310,7 @@ export function TrackContextMenu({
             )}
           </div>
 
-          <DialogFooter className="justify-between border-t border-border/70 px-6 py-4">
+          <DialogFooter className="justify-between px-6 py-4">
             {credits ? (
               <a
                 href={credits.sourceUrl}
@@ -326,9 +322,6 @@ export function TrackContextMenu({
                 <ExternalLink className="size-3" />
               </a>
             ) : <span />}
-            <DialogClose className="inline-flex h-9 items-center justify-center rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90">
-              Done
-            </DialogClose>
           </DialogFooter>
         </DialogContent>
       </Dialog>
