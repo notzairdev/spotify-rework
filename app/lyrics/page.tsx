@@ -5,7 +5,7 @@ import { Music, SkipForward } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
 import { useSpotifyPlayer, useQueue } from "@/lib/spotify";
-import { useLyricsContext } from "@/lib/lrclib";
+import { keySyncedLyrics, useLyricsContext } from "@/lib/lrclib";
 import { useFullscreen } from "@/lib/fullscreen";
 import { Slider } from "@/components/ui/slider";
 import {
@@ -166,6 +166,7 @@ export default function LyricsPage() {
     interludeProgress,
     positionSeconds,
   } = useLyricsContext();
+  const keyedLyrics = keySyncedLyrics(lyrics);
 
   const lyricsContainerRef = useRef<HTMLDivElement>(null);
   const lineRefs = useRef<(HTMLParagraphElement | null)[]>([]);
@@ -775,7 +776,7 @@ export default function LyricsPage() {
                   <InterludeDots progress={interludeProgress} />
                 )}
 
-                {lyrics.map((line, index) => {
+                {keyedLyrics.map(({ key, line }, index) => {
                   const isCurrent = index === currentLineIndex;
                   const isPast = index < currentLineIndex;
                   const distance = Math.abs(index - currentLineIndex);
@@ -816,7 +817,7 @@ export default function LyricsPage() {
                         : Math.min(distance * 8, 35);
 
                   return (
-                    <div key={`${line.time}-${line.text}`}>
+                    <div key={key}>
                       <motion.p
                         ref={(el) => {
                           lineRefs.current[index] = el;

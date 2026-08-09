@@ -46,17 +46,12 @@ export function AnimatedArtwork({
       });
     };
 
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = streamUrl;
-      video.load();
-      startPlayback();
-    } else if (Hls.isSupported()) {
+    if (Hls.isSupported()) {
       hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
         autoStartLoad: true,
         capLevelToPlayerSize: true,
-        startLevel: 0,
         maxBufferLength: 10,
         maxMaxBufferLength: 20,
       });
@@ -67,6 +62,12 @@ export function AnimatedArtwork({
       hls.on(Hls.Events.MANIFEST_PARSED, startPlayback);
       hls.on(Hls.Events.ERROR, (_, data) => {
         if (!data.fatal) return;
+
+        console.warn("Animated artwork HLS error:", {
+          type: data.type,
+          details: data.details,
+          reason: data.reason,
+        });
 
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR && networkRecoveryAttempts < 2) {
           networkRecoveryAttempts += 1;
@@ -83,6 +84,9 @@ export function AnimatedArtwork({
         markFailed();
       });
       hls.attachMedia(video);
+    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = streamUrl;
+      video.load();
     } else {
       queueMicrotask(markFailed);
     }
@@ -99,7 +103,7 @@ export function AnimatedArtwork({
   const showVideo = Boolean(streamUrl) && !videoFailed;
 
   return (
-    <div className={cn("relative size-full overflow-hidden opacity-50", className)}>
+    <div className={cn("relative size-full overflow-hidden", className)}>
       {fallbackUrl && (
         <Image
           src={fallbackUrl}
@@ -117,7 +121,7 @@ export function AnimatedArtwork({
           playsInline
           autoPlay
           crossOrigin="anonymous"
-          preload="metadata"
+          preload="auto"
           poster={fallbackUrl ?? undefined}
           aria-label={alt}
           onLoadedMetadata={() => {
@@ -125,7 +129,15 @@ export function AnimatedArtwork({
             if (video) void video.play().catch(() => undefined);
           }}
           onPlaying={() => setPlaybackState({ streamUrl: streamUrl ?? null, status: "ready" })}
-          onError={() => setPlaybackState({ streamUrl: streamUrl ?? null, status: "failed" })}
+          onError={(event) => {
+            const video = event.currentTarget;
+            console.warn("Animated artwork media error:", {
+              code: video.error?.code,
+              message: video.error?.message,
+              currentSrc: video.currentSrc,
+            });
+            setPlaybackState({ streamUrl: streamUrl ?? null, status: "failed" });
+          }}
           className={cn(
             "absolute inset-0 size-full object-cover opacity-0 transition-opacity duration-700",
             videoReady && "opacity-100"

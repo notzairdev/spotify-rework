@@ -2,6 +2,7 @@
 
 import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
 import {
   Heart,
@@ -14,7 +15,6 @@ import {
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { AnimatedArtwork } from "@/components/media/animated-artwork";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,7 +38,6 @@ import {
   type HSL,
 } from "@/lib/utils/color-extractor";
 import { cn } from "@/lib/utils";
-import { useAnimatedArtwork } from "@/lib/animated-artwork";
 
 function formatDuration(ms: number): string {
   const minutes = Math.floor(ms / 60000);
@@ -99,12 +98,6 @@ export default function AlbumPage({ params }: PageProps) {
   }, [id, saveChecked, setIsSaved, setSaveChecked]);
 
   const tracks = tracksData?.items ?? [];
-  const { data: animatedArtwork } = useAnimatedArtwork({
-    artist: album?.artists?.[0]?.name,
-    album: album?.name,
-    title: tracks[0]?.name,
-    enabled: Boolean(album && !tracksLoading),
-  });
   const totalDuration = tracks.reduce(
     (acc, track) => acc + (track.duration_ms ?? 0),
     0,
@@ -201,13 +194,15 @@ export default function AlbumPage({ params }: PageProps) {
       <div className="w-full md:sticky md:top-28 md:w-[clamp(16rem,22vw,24rem)] md:shrink-0 md:transition-transform md:duration-300 md:ease-out md:will-change-transform" style={{ zIndex: 1 }}>
         <div className="flex flex-col items-center gap-8 pb-8 md:items-start">
           {/* Album cover */}
-          <div className="aspect-square w-full max-w-[18rem] shrink-0 overflow-hidden rounded-[1.5rem] shadow-2xl md:max-w-none md:w-[clamp(16rem,22vw,24rem)]">
-            {albumImage || animatedArtwork?.url ? (
-              <AnimatedArtwork
-                streamUrl={animatedArtwork?.url}
-                fallbackUrl={albumImage}
+          <div className="relative aspect-square w-full max-w-[18rem] shrink-0 overflow-hidden rounded-[1.5rem] shadow-2xl md:max-w-none md:w-[clamp(16rem,22vw,24rem)]">
+            {albumImage ? (
+              <Image
+                src={albumImage}
                 alt={album.name}
+                fill
                 sizes="(min-width: 768px) 22vw, 288px"
+                loading="eager"
+                className="object-cover"
               />
             ) : (
               <div className="flex size-full items-center justify-center bg-muted">

@@ -1,6 +1,5 @@
 import {
   getArtistTopTracks,
-  getRecommendations,
   getTrack,
   searchAlbums,
   type SpotifyAlbum,
@@ -57,7 +56,7 @@ export interface TasteRecommendation {
 
 export interface SpotifyTrackSuggestions {
   tracks: SpotifyTrack[];
-  source: "spotify-recommendations" | "artist-top-tracks";
+  source: "artist-top-tracks";
 }
 
 export interface ListenBrainzTrend {
@@ -318,20 +317,6 @@ export async function getSpotifyTrackSuggestions(
   const limit = Math.min(Math.max(size, 1), 20);
   const currentTrack = await getTrack(trackId);
   const primaryArtistId = currentTrack.artists[0]?.id;
-
-  try {
-    const response = await getRecommendations({
-      seedTracks: [trackId],
-      seedArtists: primaryArtistId ? [primaryArtistId] : undefined,
-      limit: Math.min(limit + 2, 20),
-    });
-    const tracks = uniqueSpotifyTracks(response.tracks, trackId).slice(0, limit);
-    if (tracks.length > 0) {
-      return { tracks, source: "spotify-recommendations" };
-    }
-  } catch (error) {
-    console.info("Spotify recommendations are unavailable; using artist top tracks.", error);
-  }
 
   if (!primaryArtistId) return { tracks: [], source: "artist-top-tracks" };
 

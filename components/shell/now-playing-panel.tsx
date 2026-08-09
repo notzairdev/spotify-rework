@@ -1,10 +1,10 @@
 "use client";
 
+import { useEffect, useRef, type UIEvent } from "react";
 import Image from "next/image";
 import { ExternalLink, Heart, Music2, Pause, Play } from "lucide-react";
 import { AnimatedArtwork } from "@/components/media/animated-artwork";
 import { NowPlayingLyrics } from "@/components/lyrics/now-playing-lyrics";
-import { QueuePopover } from "@/components/player/queue-popover";
 import { useAnimatedArtwork } from "@/lib/animated-artwork";
 import {
   useAudioDbTrackInfo,
@@ -24,6 +24,8 @@ async function playRecommendation(uri: string) {
 
 export function NowPlayingPanel() {
   const { state, togglePlay } = useSpotifyPlayer();
+  const artworkLayerRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { isLiked, isLoading: likeLoading, toggleLike } = useTrackLike();
   const track = state?.track;
   const imageUrl = track?.album.images[0]?.url;
@@ -41,10 +43,29 @@ export function NowPlayingPanel() {
     ? Math.min(100, Math.max(0, (state.position / state.duration) * 100))
     : 0;
 
+  useEffect(() => {
+    const scroller = scrollContainerRef.current;
+    const artwork = artworkLayerRef.current;
+    if (scroller) scroller.scrollTop = 0;
+    if (artwork) {
+      artwork.style.opacity = "0.5";
+      artwork.style.transform = "translate3d(0, 0, 0)";
+    }
+  }, [track?.id]);
+
+  const handlePanelScroll = (event: UIEvent<HTMLDivElement>) => {
+    const artwork = artworkLayerRef.current;
+    if (!artwork) return;
+
+    const scrollTop = event.currentTarget.scrollTop;
+    const fadeProgress = Math.min(1, Math.max(0, (scrollTop - 24) / 220));
+    artwork.style.opacity = String(0.5 * (1 - fadeProgress));
+    artwork.style.transform = `translate3d(0, ${-Math.min(scrollTop * 0.3, 72)}px, 0)`;
+  };
+
   if (!track) return null;
 
   const recommendations = suggestions?.tracks ?? [];
-  const recommendationsFromSpotify = suggestions?.source === "spotify-recommendations";
 
   return (
     <aside
@@ -53,8 +74,11 @@ export function NowPlayingPanel() {
     >
       <div className="pointer-events-none absolute inset-0">
         <div
+          ref={artworkLayerRef}
+          data-now-playing-artwork
           className="absolute inset-0"
           style={{
+            opacity: 0.5,
             maskImage: "linear-gradient(to bottom, black 0%, black 46%, rgba(0,0,0,.72) 68%, transparent 100%)",
             WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 46%, rgba(0,0,0,.72) 68%, transparent 100%)",
           }}
@@ -71,12 +95,14 @@ export function NowPlayingPanel() {
 
       <div className="relative z-20 mt-14 flex h-14 shrink-0 items-center justify-between px-5">
         <p className="text-sm font-semibold">Now playing</p>
-        <QueuePopover
-          triggerClassName="flex size-9 items-center justify-center rounded-full bg-white/5 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
-        />
       </div>
 
-      <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-y-contain pb-6 scrollbar-hide">
+      <div
+        ref={scrollContainerRef}
+        data-now-playing-scroll
+        onScroll={handlePanelScroll}
+        className="relative min-h-0 flex-1 overflow-y-auto overscroll-y-contain pb-6 scrollbar-hide"
+      >
           <div className="relative h-[23rem]">
             <button
               type="button"
@@ -136,12 +162,10 @@ export function NowPlayingPanel() {
               <section className="rounded-2xl border border-white/8 bg-white/4 p-3">
                 <div className="px-1 pb-2 pt-1">
                   <p className="text-xs font-semibold">
-                    {recommendationsFromSpotify ? "More like this" : `More from ${primaryArtist}`}
+                    {`More from ${primaryArtist}`}
                   </p>
                   <p className="mt-0.5 text-[10px] text-muted-foreground">
-                    {recommendationsFromSpotify
-                      ? "Recommended by Spotify from the current track"
-                      : "Top tracks from the same artist on Spotify"}
+                    Top tracks from the same artist on Spotify
                   </p>
                 </div>
                 <div className="space-y-1">
@@ -186,12 +210,16 @@ export function NowPlayingPanel() {
             {trackInfo && (
               <section className="rounded-2xl border border-white/8 bg-white/4 p-4">
                 <div className="flex flex-wrap gap-1.5">
-                  {[trackInfo.genre, trackInfo.mood, trackInfo.style]
-                    .filter((value): value is string => Boolean(value))
+                  {[
+                    { key: "genre", value: trackInfo.genre },
+                    { key: "mood", value: trackInfo.mood },
+                    { key: "style", value: trackInfo.style },
+                  ]
+                    .filter((item): item is { key: string; value: string } => Boolean(item.value))
                     .slice(0, 3)
-                    .map((value) => (
-                      <span key={value} className="rounded-full bg-white/7 px-2.5 py-1 text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
-                        {value}
+                    .map((item) => (
+                      <span key={item.key} className="rounded-full bg-white/7 px-2.5 py-1 text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+                        {item.value}
                       </span>
                     ))}
                 </div>
