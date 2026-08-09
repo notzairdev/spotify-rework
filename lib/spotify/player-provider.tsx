@@ -159,6 +159,7 @@ export function SpotifyPlayerProvider({
   const playerRef = useRef<Spotify.Player | null>(null);
   const accessTokenRef = useRef<string | null>(null);
   const hasAutoTransferredRef = useRef(false);
+  const repeatRequestInFlightRef = useRef(false);
 
   // Keep token ref updated
   useEffect(() => {
@@ -397,8 +398,8 @@ export function SpotifyPlayerProvider({
           repeatMode: (sdkState.repeat_mode === 0
             ? "off"
             : sdkState.repeat_mode === 1
-              ? "context"
-              : "track") as "off" | "context" | "track",
+              ? "track"
+              : "context") as "off" | "context" | "track",
         };
         
         setState((prev) => {
@@ -447,7 +448,7 @@ export function SpotifyPlayerProvider({
   useEffect(() => {
     if (!isTauriContext() || !player) return;
 
-    let unlistens: (() => void)[] = [];
+    const unlistens: (() => void)[] = [];
     const setupListeners = async () => {
       try {
         const u1 = await listen("island-play-pause", () => player.togglePlay());
@@ -591,18 +592,38 @@ export function SpotifyPlayerProvider({
   }, [deviceId, getAccessToken, state?.shuffle]);
 
   const cycleRepeatMode = useCallback(async () => {
-    if (!deviceId) return;
-    const token = await getAccessToken();
-    // Cycle: off -> context -> track -> off
-    const modes: Array<"off" | "context" | "track"> = ["off", "context", "track"];
-    const currentIndex = modes.indexOf(state?.repeatMode ?? "off");
-    const nextMode = modes[(currentIndex + 1) % 3];
-    await fetch(`https://api.spotify.com/v1/me/player/repeat?state=${nextMode}&device_id=${deviceId}`, {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    // Update local state optimistically
-    setState(prev => prev ? { ...prev, repeatMode: nextMode } : null);
+    if (!deviceId || repeatRequestInFlightRef.current) return;
+    repeatRequestInFlightRef.current = true;
+
+    try {
+      const token = await getAccessToken();
+      // Cycle: off -> context -> track -> off
+      const modes: Array<"off" | "context" | "track"> = ["off", "context", "track"];
+      const currentIndex = modes.indexOf(state?.repeatMode ?? "off");
+      const nextMode = modes[(currentIndex + 1) % modes.length];
+      const params = new URLSearchParams({
+        state: nextMode,
+        device_id: deviceId,
+      });
+      const response = await fetch(
+        `https://api.spotify.com/v1/me/player/repeat?${params}`,
+        {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Spotify rejected repeat mode change (${response.status})`);
+      }
+
+      // Reflect the new mode only after Spotify accepts the request.
+      setState((prev) => prev ? { ...prev, repeatMode: nextMode } : null);
+    } catch (e) {
+      devError("Failed to change repeat mode:", e);
+    } finally {
+      repeatRequestInFlightRef.current = false;
+    }
   }, [deviceId, getAccessToken, state?.repeatMode]);
 
   const value = useMemo<SpotifyPlayerContextValue>(

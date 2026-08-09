@@ -25,9 +25,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cn( fontMono.variable, "font-sans", geist.variable)} suppressHydrationWarning>
+    <html
+      lang="en"
+      className={cn(fontMono.variable, "h-full overflow-hidden font-sans", geist.variable)}
+      suppressHydrationWarning
+    >
       <body
-        className={`antialiased select-none bg-background`}
+        className="h-full overflow-hidden bg-background antialiased select-none"
       >
         <Providers>
           {children}

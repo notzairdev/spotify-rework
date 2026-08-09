@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { Music, SkipForward } from "lucide-react";
+import { ExternalLink, Music, PenLine, SkipForward } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
 import { useSpotifyPlayer, useQueue } from "@/lib/spotify";
@@ -14,6 +14,7 @@ import {
   type HSL,
 } from "@/lib/utils/color-extractor";
 import { DynamicIsland } from "@/components/player";
+import { useTrackCredits } from "@/lib/music-data";
 
 // ---------------------------------------------------------------------------
 // Interlude – three bouncing dots (bigger)
@@ -48,6 +49,83 @@ function InterludeDots({ progress }: { progress: number }) {
         ))}
       </div>
     </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Marquee – auto-scrolling text when it overflows
+// ---------------------------------------------------------------------------
+function MarqueeText({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [overflow, setOverflow] = useState(0);
+
+  // Inject keyframe once
+  useEffect(() => {
+    if (document.getElementById("marquee-keyframe")) return;
+    const style = document.createElement("style");
+    style.id = "marquee-keyframe";
+    style.textContent = `
+      @keyframes marquee-scroll {
+        0%, 20% { transform: translateX(0); }
+        80%, 100% { transform: translateX(var(--marquee-distance)); }
+      }
+    `;
+    document.head.appendChild(style);
+  }, []);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    const text = textRef.current;
+    if (!container || !text) return;
+
+    const measure = () => {
+      const diff = text.scrollWidth - container.clientWidth;
+      setOverflow(diff > 2 ? diff : 0);
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [children]);
+
+  return (
+    <div
+      ref={containerRef}
+      className={cn("overflow-hidden whitespace-nowrap", className)}
+      style={
+        overflow > 0
+          ? {
+              maskImage:
+                "linear-gradient(to right, transparent, black 8%, black 92%, transparent)",
+              WebkitMaskImage:
+                "linear-gradient(to right, transparent, black 8%, black 92%, transparent)",
+            }
+          : undefined
+      }
+    >
+      <span
+        ref={textRef}
+        className="inline-block"
+        style={
+          overflow > 0
+            ? ({
+                animation: `marquee-scroll ${Math.max(3, overflow * 0.04)}s ease-in-out infinite alternate`,
+                "--marquee-distance": `-${overflow}px`,
+              } as React.CSSProperties)
+            : undefined
+        }
+      >
+        {children}
+      </span>
+    </div>
   );
 }
 
@@ -88,6 +166,7 @@ export default function LyricsPage() {
   const track = state?.track;
   const albumArt = track?.album.images[0]?.url;
   const trackId = track?.id;
+  const { data: trackCredits } = useTrackCredits(trackId ?? null);
 
   // Format time helper
   const formatTime = (ms: number) => {
@@ -96,6 +175,25 @@ export default function LyricsPage() {
     const sec = s % 60;
     return `${m}:${sec.toString().padStart(2, "0")}`;
   };
+
+  // Scroll a line to ~38% from the top of the container (optical center)
+  const scrollToLine = useCallback(
+    (lineIndex: number, behavior: ScrollBehavior = "smooth") => {
+      const container = lyricsContainerRef.current;
+      const el = lineRefs.current[lineIndex];
+      if (!container || !el) return;
+
+      const containerRect = container.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      // Target: place the line at 38% from the top of the visible container
+      const targetOffset = containerRect.height * 0.42;
+      const elTopInContainer = elRect.top - containerRect.top + container.scrollTop;
+      const scrollTarget = elTopInContainer - targetOffset;
+
+      container.scrollTo({ top: scrollTarget, behavior });
+    },
+    [],
+  );
 
   // Progress percentage
   const progress =
@@ -223,10 +321,7 @@ export default function LyricsPage() {
       if (currentLineIndex <= 0 && lyricsContainerRef.current) {
         lyricsContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
       } else if (lineRefs.current[currentLineIndex]) {
-        lineRefs.current[currentLineIndex]?.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        });
+        scrollToLine(currentLineIndex, "smooth");
       }
       setTimeout(() => {
         isProgrammaticScroll.current = false;
@@ -261,10 +356,7 @@ export default function LyricsPage() {
       lineRefs.current[currentLineIndex]
     ) {
       isProgrammaticScroll.current = true;
-      lineRefs.current[currentLineIndex]?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
+      scrollToLine(currentLineIndex, "smooth");
       // Clear programmatic flag after scroll settles
       setTimeout(() => {
         isProgrammaticScroll.current = false;
@@ -462,9 +554,9 @@ export default function LyricsPage() {
           transition={{ duration: 0.5, delay: 0.2, ease: "easeOut" }}
         >
           <div className="text-center">
-            <h1 className="text-xl font-bold text-white truncate leading-snug">
+            <MarqueeText className="text-xl font-bold text-white leading-snug">
               {track.name}
-            </h1>
+            </MarqueeText>
             <p className="text-sm text-white/55 truncate mt-1">
               {track.artists.join(", ")}
             </p>
@@ -657,8 +749,14 @@ export default function LyricsPage() {
                   if (!line.text.trim()) return null;
 
                   // When user is scrolling: no blur, show all lines clearly
-                  const blurPx =
-                    userScrolling || isCurrent ? 0 : Math.min(distance * 2, 7);
+                  // When auto-scrolling: past lines vanish completely (fade + blur)
+                  const blurPx = userScrolling
+                    ? 0
+                    : isCurrent
+                      ? 0
+                      : isPast
+                        ? Math.min(4 + distance * 3, 14)
+                        : Math.min(distance * 2, 7);
                   const lineOpacity = userScrolling
                     ? isCurrent
                       ? 1
@@ -666,7 +764,7 @@ export default function LyricsPage() {
                     : isCurrent
                       ? 1
                       : isPast
-                        ? Math.max(0.06, 0.35 - (distance - 1) * 0.12)
+                        ? 0
                         : Math.max(0.06, 0.4 - (distance - 1) * 0.12);
                   // Staggered delay: each line further from current gets progressively more delay
                   const cascadeDelay = isCurrent ? 0 : 0.15 + distance * 0.06;
@@ -689,7 +787,7 @@ export default function LyricsPage() {
                           lineRefs.current[index] = el;
                         }}
                         className={cn(
-                          "text-[2.2rem] sm:text-[2.4rem] lg:text-[2.6rem] xl:text-[3rem] font-bold leading-[1.2] cursor-pointer py-4 origin-left select-none",
+                          "text-[2.25rem] sm:text-[2.45rem] lg:text-[2.65rem] xl:text-[3.06rem] font-bold leading-[1.2] cursor-pointer py-4 origin-left select-none",
                           isCurrent && "text-white",
                           isPast && "text-white/30",
                           !isCurrent && !isPast && "text-white/25",
@@ -739,6 +837,34 @@ export default function LyricsPage() {
               <div className="whitespace-pre-wrap text-2xl lg:text-3xl font-normal text-white/60 leading-relaxed">
                 {plainLyrics}
               </div>
+            )}
+
+            {!isLoading && hasLyrics && trackCredits && trackCredits.writtenBy.length > 0 && (
+              <motion.div
+                className="mt-24 border-t border-white/10 pt-8"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+              >
+                <div className="mb-3 flex items-center gap-2 text-white/45">
+                  <PenLine className="size-4" />
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em]">
+                    Written by
+                  </span>
+                </div>
+                <p className="text-xl font-semibold leading-relaxed text-white/75 lg:text-2xl">
+                  {trackCredits.writtenBy.join(" · ")}
+                </p>
+                <a
+                  href={trackCredits.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 inline-flex items-center gap-1.5 text-xs text-white/35 transition-colors hover:text-white/60"
+                >
+                  Credits from MusicBrainz
+                  <ExternalLink className="size-3" />
+                </a>
+              </motion.div>
             )}
           </div>
         </div>

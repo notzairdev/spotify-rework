@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
+  BookOpenText,
   Heart,
   ListPlus,
-  Radio,
   Share2,
   User,
   Disc3,
@@ -23,7 +23,16 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import {
-  useMyPlaylists,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Spinner } from "@/components/ui/spinner";
+import {
   getMyPlaylists,
   addTracksToPlaylist,
   addToQueue,
@@ -31,6 +40,7 @@ import {
   removeTracks,
   checkSavedTracks,
 } from "@/lib/spotify";
+import { useTrackCredits } from "@/lib/music-data";
 import { toast } from "sonner";
 
 interface TrackContextMenuProps {
@@ -46,8 +56,10 @@ interface TrackContextMenuProps {
 }
 
 // Shared cache for playlists to avoid multiple fetches
-let playlistsCache: { items: any[] } | null = null;
-let playlistsFetchPromise: Promise<any> | null = null;
+type PlaylistPage = Awaited<ReturnType<typeof getMyPlaylists>>;
+
+let playlistsCache: PlaylistPage | null = null;
+let playlistsFetchPromise: Promise<PlaylistPage> | null = null;
 
 export function TrackContextMenu({
   children,
@@ -60,11 +72,16 @@ export function TrackContextMenu({
   albumName,
   spotifyUrl,
 }: TrackContextMenuProps) {
-  const [playlists, setPlaylists] = useState<any[] | null>(playlistsCache?.items ?? null);
+  const [playlists, setPlaylists] = useState<PlaylistPage["items"] | null>(
+    playlistsCache?.items ?? null,
+  );
   const [isLiked, setIsLiked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isAddingToQueue, setIsAddingToQueue] = useState(false);
+  const [creditsOpen, setCreditsOpen] = useState(false);
   const dataFetchedRef = useRef(false);
+  const { data: credits, error: creditsError, isLoading: creditsLoading } =
+    useTrackCredits(trackId, creditsOpen);
 
   // Lazy load data when menu is about to open (on right click)
   const handleContextMenu = useCallback(() => {
@@ -100,7 +117,7 @@ export function TrackContextMenu({
       toast.success("Added to queue", {
         description: trackName,
       });
-    } catch (e) {
+    } catch {
       toast.error("Failed to add to queue");
     } finally {
       setIsAddingToQueue(false);
@@ -113,7 +130,7 @@ export function TrackContextMenu({
       toast.success(`Added to ${playlistName}`, {
         description: trackName,
       });
-    } catch (e) {
+    } catch {
       toast.error("Failed to add to playlist");
     }
   };
@@ -131,7 +148,7 @@ export function TrackContextMenu({
         setIsLiked(true);
         toast.success("Added to Liked Songs", { description: trackName });
       }
-    } catch (e) {
+    } catch {
       toast.error("Failed to update");
     } finally {
       setIsLoading(false);
@@ -146,7 +163,8 @@ export function TrackContextMenu({
   };
 
   return (
-    <ContextMenu>
+    <>
+      <ContextMenu>
       <ContextMenuTrigger asChild onContextMenu={handleContextMenu}>
         {children}
       </ContextMenuTrigger>
@@ -197,6 +215,11 @@ export function TrackContextMenu({
           Add to Queue
         </ContextMenuItem>
 
+        <ContextMenuItem onClick={() => setCreditsOpen(true)}>
+          <BookOpenText className="mr-2 h-4 w-4" />
+          Song credits
+        </ContextMenuItem>
+
         <ContextMenuSeparator />
 
         {/* Go to artist */}
@@ -239,6 +262,76 @@ export function TrackContextMenu({
           </ContextMenuItem>
         )}
       </ContextMenuContent>
-    </ContextMenu>
+      </ContextMenu>
+
+      <Dialog open={creditsOpen} onOpenChange={setCreditsOpen}>
+        <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto]">
+          <DialogHeader className="border-b border-border/70 px-6 py-5 pr-16 text-left">
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <BookOpenText className="size-5" />
+              </div>
+              <div className="min-w-0">
+                <DialogTitle className="truncate text-lg font-semibold">
+                  {trackName}
+                </DialogTitle>
+                <DialogDescription className="truncate text-sm">
+                  {[artistName, albumName].filter(Boolean).join(" · ") || "Song credits"}
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="min-h-48 overflow-y-auto px-6 py-5">
+            {creditsLoading ? (
+              <div className="flex min-h-40 flex-col items-center justify-center gap-3 text-muted-foreground">
+                <Spinner className="size-6" />
+                <p className="text-sm">Looking up available credits…</p>
+              </div>
+            ) : credits ? (
+              <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+                {credits.groups.map((group) => (
+                  <div key={group.label} className="min-w-0">
+                    <p className="mb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      {group.label}
+                    </p>
+                    <p className="text-sm leading-relaxed text-foreground">
+                      {group.names.join(", ")}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex min-h-40 flex-col items-center justify-center text-center">
+                <BookOpenText className="mb-3 size-8 text-muted-foreground/50" />
+                <p className="font-medium">No detailed credits found</p>
+                <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                  {creditsError
+                    ? "Credits could not be loaded right now."
+                    : "This release does not have contributor credits in the available catalog."}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="justify-between border-t border-border/70 px-6 py-4">
+            {credits ? (
+              <a
+                href={credits.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Data from MusicBrainz
+                <ExternalLink className="size-3" />
+              </a>
+            ) : <span />}
+            <DialogClose className="inline-flex h-9 items-center justify-center rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90">
+              Done
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

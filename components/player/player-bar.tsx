@@ -18,7 +18,8 @@ import {
   Heart,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useSpotifyPlayer, useQueue, useTrackLike } from "@/lib/spotify";
+import { getQueue, useSpotifyPlayer, useTrackLike } from "@/lib/spotify";
+import { normalizePlaybackQueue } from "@/lib/spotify/queue";
 import { useAuth } from "@/lib/auth";
 import { useLyricsContext } from "@/lib/lrclib";
 import Link from "next/link";
@@ -52,19 +53,11 @@ export function PlayerBar() {
     cycleRepeatMode,
   } = useSpotifyPlayer();
 
-  const shouldFetchQueue = !!state?.track;
-  const { data: queueData, refetch: refetchQueue } = useQueue({ enabled: shouldFetchQueue });
-
-  // Refetch queue whenever the track changes (covers skip, previous, auto-advance)
   const trackId = state?.track?.id;
-  useEffect(() => {
-    if (trackId) {
-      refetchQueue();
-    }
-  }, [trackId, refetchQueue]);
   const { isLiked, toggleLike, isLoading: likeLoading } = useTrackLike();
 
   const toastShownRef = useRef<string | null>(null);
+  const toastRequestRef = useRef<string | null>(null);
 
   const currentProgress =
     state?.position != null && state?.duration != null && state.duration > 0
@@ -77,40 +70,64 @@ export function PlayerBar() {
 
   // Extract ambient color from album art
   useEffect(() => {
-    if (!albumArt) {
-      setAmbientColor(null);
-      return;
-    }
-    extractDominantColor(albumArt).then((color) => {
-      if (color) setAmbientColor(color);
+    let cancelled = false;
+    const colorPromise = albumArt
+      ? extractDominantColor(albumArt)
+      : Promise.resolve(null);
+
+    colorPromise.then((color) => {
+      if (!cancelled) setAmbientColor(color);
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [albumArt]);
 
-  // Next song toast at 15 seconds remaining (not on /lyrics or /)
+  // Reset the notification guard when playback moves to another track.
+  useEffect(() => {
+    toastShownRef.current = null;
+    toastRequestRef.current = null;
+  }, [trackId]);
+
+  // Resolve Up Next from a fresh queue snapshot at the moment it is needed.
   useEffect(() => {
     // Don't show toast on lyrics page or login
     if (pathname === "/lyrics" || pathname === "/" || pathname === "/callback" || pathname === "/app/callback") return;
     if (!state?.track || !state.duration || !state.isPlaying) return;
+    if (state.repeatMode === "track") return;
 
     const remaining = state.duration - (state.position ?? 0);
-    const trackId = state.track.id;
-    const nextTrackInQueue = queueData?.queue?.[0];
-
-    if (toastShownRef.current !== null && toastShownRef.current !== trackId) {
-      toastShownRef.current = null;
-    }
+    const currentTrackId = state.track.id;
 
     if (
       remaining <= 15000 &&
       remaining > 0 &&
-      toastShownRef.current !== trackId &&
-      nextTrackInQueue
+      toastShownRef.current !== currentTrackId &&
+      toastRequestRef.current !== currentTrackId
     ) {
-      toastShownRef.current = trackId;
-      toast("Up Next", {
-        description: `${nextTrackInQueue.name} • ${nextTrackInQueue.artists.map((a) => a.name).join(", ")}`,
-        duration: 5000,
-      });
+      toastRequestRef.current = currentTrackId;
+
+      void getQueue()
+        .then((freshQueue) => {
+          if (freshQueue.currently_playing?.id !== currentTrackId) return;
+
+          const nextTrack = normalizePlaybackQueue(
+            freshQueue.queue,
+            currentTrackId,
+            state.repeatMode
+          )[0];
+
+          if (!nextTrack) return;
+          toastShownRef.current = currentTrackId;
+          toast("Up Next", {
+            description: `${nextTrack.name} • ${nextTrack.artists.map((artist) => artist.name).join(", ")}`,
+            duration: 5000,
+          });
+        })
+        .catch((error) => {
+          console.error("Failed to refresh Up Next:", error);
+        });
     }
   }, [
     pathname,
@@ -118,7 +135,7 @@ export function PlayerBar() {
     state?.duration,
     state?.track?.id,
     state?.isPlaying,
-    queueData?.queue,
+    state?.repeatMode,
   ]);
 
   const handleSeek = (value: number[]) => {
@@ -186,7 +203,7 @@ export function PlayerBar() {
   return (
     <div
       className={cn(
-        "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-500",
+        "fixed bottom-6 left-1/2 isolate -translate-x-1/2 z-50 transition-all duration-500",
         track
           ? "opacity-100 translate-y-0"
           : "opacity-0 translate-y-4 pointer-events-none",
@@ -194,7 +211,7 @@ export function PlayerBar() {
     >
       {/* Ambient glow */}
       <div
-        className="absolute inset-0 opacity-40 blur-3xl -z-10 scale-150 transition-all duration-700"
+        className="absolute inset-0 -z-10 scale-150 bg-transparent opacity-40 blur-3xl transition-all duration-700"
         style={{
           background: ambientColor
             ? `radial-gradient(ellipse, hsl(${hslToString(ambientColor)} / 0.7), transparent 70%)`
@@ -204,7 +221,7 @@ export function PlayerBar() {
 
       <div
         className={cn(
-            "backdrop-blur-2xl border border-white/10 rounded-4xl shadow-2xl shadow-black/40",
+          "backdrop-blur-2xl border border-white/10 rounded-4xl shadow-2xl shadow-black/40",
         )}
       >
         <div className="flex items-center px-5 py-3 gap-4">
@@ -326,6 +343,20 @@ export function PlayerBar() {
           {/* Repeat */}
           <button
             onClick={cycleRepeatMode}
+            aria-label={
+              state?.repeatMode === "track"
+                ? "Turn repeat off"
+                : state?.repeatMode === "context"
+                  ? "Repeat current track"
+                  : "Repeat playback context"
+            }
+            title={
+              state?.repeatMode === "track"
+                ? "Repeat track"
+                : state?.repeatMode === "context"
+                  ? "Repeat context"
+                  : "Repeat off"
+            }
             className={cn(
               "p-2 rounded-full transition-colors",
               state?.repeatMode !== "off"

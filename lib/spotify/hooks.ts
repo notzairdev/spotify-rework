@@ -8,6 +8,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth";
+import { usePreservedPageState } from "@/lib/page-state";
 import * as spotifyApi from "./api";
 
 // ============================================================================
@@ -546,9 +547,12 @@ export function useFeaturedPlaylists(limit: number = 20) {
  * Debounced search hook - waits for user to stop typing
  */
 export function useDebouncedSearch(debounceMs: number = 2000) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = usePreservedPageState("spotify-search.query", "");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [results, setResults] = useState<spotifyApi.SpotifySearchResults | null>(null);
+  const [results, setResults] = usePreservedPageState<spotifyApi.SpotifySearchResults | null>(
+    "spotify-search.results",
+    null
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);

@@ -6,7 +6,7 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
-import { isTauriContext, devError, devLog } from "@/lib/env";
+import { isTauriContext, devError } from "@/lib/env";
 
 const SPOTIFY_API_BASE = "https://api.spotify.com/v1";
 
@@ -56,6 +56,7 @@ export interface SpotifyAlbum {
   release_date: string;
   total_tracks: number;
   album_type: "album" | "single" | "compilation";
+  album_group?: "album" | "single" | "appears_on" | "compilation";
   external_urls: {
     spotify: string;
   };
@@ -77,6 +78,11 @@ export interface SpotifyTrack {
   uri: string;
   external_urls: {
     spotify: string;
+  };
+  external_ids?: {
+    isrc?: string;
+    ean?: string;
+    upc?: string;
   };
 }
 
@@ -1026,13 +1032,22 @@ export async function getNewReleases(
   limit: number = 20,
   offset: number = 0
 ): Promise<{ albums: SpotifyPaginatedResponse<SpotifyAlbum> }> {
-  const params = new URLSearchParams({
-    limit: limit.toString(),
-    offset: offset.toString(),
-  });
-  return spotifyFetch<{ albums: SpotifyPaginatedResponse<SpotifyAlbum> }>(
-    `/browse/new-releases?${params}`
-  );
+  // /browse/new-releases was removed in February 2026. Spotify Search keeps
+  // the supported tag:new filter for albums released in the last two weeks.
+  const safeLimit = Math.min(limit, 10);
+  const result = await search("tag:new", ["album"], safeLimit, offset);
+  const albums = result.albums;
+
+  return {
+    albums: {
+      items: albums?.items ?? [],
+      total: albums?.total ?? 0,
+      limit: albums?.limit ?? safeLimit,
+      offset: albums?.offset ?? offset,
+      next: null,
+      previous: null,
+    },
+  };
 }
 
 /**

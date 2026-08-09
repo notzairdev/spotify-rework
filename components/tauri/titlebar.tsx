@@ -18,6 +18,7 @@ import { useWindow } from "@/hooks";
 import { useAuth } from "@/lib/auth";
 import { useFullscreen } from "@/lib/fullscreen";
 import { cn } from "@/lib/utils";
+import { clearPreservedNavigationState } from "@/lib/page-state";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,6 +32,16 @@ import GradualBlur from "@/components/GradualBlur";
 // Paths that should not be in navigation history
 const EXCLUDED_PATHS = ["/", "/callback", "/app/callback"];
 
+interface NavigationHistory {
+  entries: string[];
+  index: number;
+}
+
+const EMPTY_NAVIGATION_HISTORY: NavigationHistory = {
+  entries: [],
+  index: -1,
+};
+
 export function Titlebar() {
   const router = useRouter();
   const pathname = usePathname();
@@ -38,8 +49,9 @@ export function Titlebar() {
   const { isAuthenticated } = useAuth();
 
   // Navigation history tracking
-  const [historyStack, setHistoryStack] = useState<string[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(-1);
+  const [navigationHistory, setNavigationHistory] = useState<NavigationHistory>(
+    EMPTY_NAVIGATION_HISTORY
+  );
   const isNavigatingRef = useRef(false);
 
   const { user, logout } = useAuth();
@@ -54,54 +66,61 @@ export function Titlebar() {
     // Skip excluded paths
     if (EXCLUDED_PATHS.includes(pathname)) return;
 
-    // Skip if we're navigating via back/forward buttons
-    if (isNavigatingRef.current) {
-      isNavigatingRef.current = false;
-      return;
-    }
+    const updateTimer = window.setTimeout(() => {
+      setNavigationHistory((previousHistory) => {
+        // A titlebar traversal already moved the index before the route changed.
+        if (isNavigatingRef.current) {
+          isNavigatingRef.current = false;
+          return previousHistory;
+        }
 
-    // Check if we should add this path
-    setHistoryStack((prev) => {
-      // If navigating forward from middle of history, truncate
-      const truncated = prev.slice(0, currentIndex + 1);
+        const truncatedEntries = previousHistory.entries.slice(
+          0,
+          previousHistory.index + 1
+        );
 
-      // Don't add duplicate consecutive entries
-      if (truncated[truncated.length - 1] === pathname) {
-        return prev;
-      }
+        if (truncatedEntries[truncatedEntries.length - 1] === pathname) {
+          return previousHistory;
+        }
 
-      const newStack = [...truncated, pathname];
-      // Update index to point to the newly added entry
-      // Use setTimeout to batch with React's state updates
-      setTimeout(() => setCurrentIndex(newStack.length - 1), 0);
-      return newStack;
-    });
-  }, [pathname, currentIndex]);
+        const entries = [...truncatedEntries, pathname];
+        return { entries, index: entries.length - 1 };
+      });
+    }, 0);
 
-  const canGoBack = currentIndex > 0;
-  const canGoForward = currentIndex < historyStack.length - 1;
+    return () => window.clearTimeout(updateTimer);
+  }, [pathname]);
+
+  const canGoBack = navigationHistory.index > 0;
+  const canGoForward = navigationHistory.index < navigationHistory.entries.length - 1;
 
   const handleGoBack = () => {
     if (!canGoBack) return;
     isNavigatingRef.current = true;
-    const newIndex = currentIndex - 1;
-    setCurrentIndex(newIndex);
-    router.push(historyStack[newIndex]);
+    const newIndex = navigationHistory.index - 1;
+    setNavigationHistory((previousHistory) => ({
+      ...previousHistory,
+      index: newIndex,
+    }));
+    router.push(navigationHistory.entries[newIndex], { scroll: false });
   };
 
   const handleGoForward = () => {
     if (!canGoForward) return;
     isNavigatingRef.current = true;
-    const newIndex = currentIndex + 1;
-    setCurrentIndex(newIndex);
-    router.push(historyStack[newIndex]);
+    const newIndex = navigationHistory.index + 1;
+    setNavigationHistory((previousHistory) => ({
+      ...previousHistory,
+      index: newIndex,
+    }));
+    router.push(navigationHistory.entries[newIndex], { scroll: false });
   };
 
   const handleLogout = async () => {
     await logout();
     // Clear history on logout
-    setHistoryStack([]);
-    setCurrentIndex(-1);
+    setNavigationHistory(EMPTY_NAVIGATION_HISTORY);
+    clearPreservedNavigationState();
     router.push("/");
   };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { use, useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -13,11 +13,22 @@ import {
   Users,
   Music,
   Disc3,
+  BookOpenText,
+  ExternalLink,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { TrackContextMenu, AlbumContextMenu } from "@/components/context";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { TrackContextMenu } from "@/components/context";
 import {
   useArtist,
   useArtistTopTracks,
@@ -26,6 +37,9 @@ import {
   useRelatedArtists,
 } from "@/lib/spotify/hooks";
 import { startPlayback } from "@/lib/spotify/api";
+import type { SpotifyAlbum } from "@/lib/spotify/api";
+import { usePreservedPageState } from "@/lib/page-state";
+import { useArtistBiography } from "@/lib/music-data";
 import {
   extractDominantColor,
   hslToString,
@@ -48,6 +62,52 @@ function formatFollowers(count: number): string {
   return count.toString();
 }
 
+type DiscographyCategory = "album" | "ep" | "single" | "compilation";
+
+const DISCOGRAPHY_CATEGORIES: {
+  key: DiscographyCategory;
+  label: string;
+  singular: string;
+}[] = [
+  { key: "album", label: "Albums", singular: "Album" },
+  { key: "ep", label: "EPs", singular: "EP" },
+  { key: "single", label: "Singles", singular: "Single" },
+  { key: "compilation", label: "Compilations", singular: "Compilation" },
+];
+
+function getDiscographyCategory(album: SpotifyAlbum): DiscographyCategory {
+  if (album.album_group === "compilation" || album.album_type === "compilation") {
+    return "compilation";
+  }
+
+  // Spotify has no dedicated EP type. Explicitly labelled releases and short
+  // releases returned as albums are the best signals available in this payload.
+  const isExplicitEp = /(?:^|[\s([{—–-])e\.?p\.?(?:$|[\s)\]}—–\-:])/i.test(album.name);
+  const isShortAlbum = album.album_type === "album"
+    && album.total_tracks >= 2
+    && album.total_tracks <= 6;
+
+  if (isExplicitEp || isShortAlbum) return "ep";
+  return album.album_type === "single" ? "single" : "album";
+}
+
+function deduplicateAlbums(albums: SpotifyAlbum[]): SpotifyAlbum[] {
+  const seen = new Set<string>();
+
+  return albums.filter((album) => {
+    const key = [
+      album.name.trim().toLocaleLowerCase(),
+      album.release_date,
+      album.total_tracks,
+      getDiscographyCategory(album),
+    ].join("|");
+
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 interface PageProps {
   params: Promise<{ id: string }>;
 }
@@ -58,33 +118,80 @@ export default function ArtistPage({ params }: PageProps) {
 
   const { data: artist, isLoading: artistLoading } = useArtist(id);
   const { data: topTracksData, isLoading: tracksLoading } = useArtistTopTracks(id);
-  const { data: albumsData, isLoading: albumsLoading } = useArtistAlbums(id);
+  const { data: albumsData, isLoading: albumsLoading } = useArtistAlbums(id, [
+    "album",
+    "single",
+    "compilation",
+  ]);
   const { data: appearsOnData, isLoading: appearsOnLoading } = useArtistAppearsOn(id);
   const { data: relatedData, isLoading: relatedLoading } = useRelatedArtists(id);
+  const { data: biography, isLoading: biographyLoading } = useArtistBiography(
+    artist?.name ?? null,
+  );
 
   const [coverColor, setCoverColor] = useState<HSL | null>(null);
-  const [showAllAlbums, setShowAllAlbums] = useState(false);
-  const [showAllTracks, setShowAllTracks] = useState(false);
+  const [discographyCategory, setDiscographyCategory] = usePreservedPageState<DiscographyCategory>(
+    "discography-category",
+    "album"
+  );
+  const [showAllAlbums, setShowAllAlbums] = usePreservedPageState(
+    "show-all-albums",
+    false
+  );
+  const [showAllTracks, setShowAllTracks] = usePreservedPageState(
+    "show-all-tracks",
+    false
+  );
+  const [biographyOpen, setBiographyOpen] = useState(false);
 
   // Extract dominant color from artist image
   useEffect(() => {
     const imageUrl = artist?.images?.[0]?.url;
-    if (!imageUrl) {
-      setCoverColor(null);
-      return;
-    }
+    let cancelled = false;
+    const colorPromise = imageUrl
+      ? extractDominantColor(imageUrl)
+      : Promise.resolve(null);
 
-    extractDominantColor(imageUrl).then((color) => {
-      setCoverColor(color);
+    colorPromise.then((color) => {
+      if (!cancelled) setCoverColor(color);
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [artist?.images]);
 
   const topTracks = topTracksData?.tracks ?? [];
-  const albums = albumsData?.items ?? [];
+  const albums = albumsData?.items;
   const appearsOn = appearsOnData?.items ?? [];
   const relatedArtists = relatedData?.artists ?? [];
   
-  const displayedAlbums = showAllAlbums ? albums : albums.slice(0, 8);
+  const groupedDiscography = useMemo(() => {
+    const groups: Record<DiscographyCategory, SpotifyAlbum[]> = {
+      album: [],
+      ep: [],
+      single: [],
+      compilation: [],
+    };
+
+    deduplicateAlbums(albums ?? []).forEach((album) => {
+      groups[getDiscographyCategory(album)].push(album);
+    });
+
+    return groups;
+  }, [albums]);
+
+  const availableDiscographyCategories = DISCOGRAPHY_CATEGORIES.filter(
+    ({ key }) => groupedDiscography[key].length > 0
+  );
+  const activeDiscographyCategory = groupedDiscography[discographyCategory].length > 0
+    ? discographyCategory
+    : (availableDiscographyCategories[0]?.key ?? "album");
+  const activeCategoryDetails = DISCOGRAPHY_CATEGORIES.find(
+    ({ key }) => key === activeDiscographyCategory
+  )!;
+  const filteredAlbums = groupedDiscography[activeDiscographyCategory];
+  const displayedAlbums = showAllAlbums ? filteredAlbums : filteredAlbums.slice(0, 8);
   const displayedTracks = showAllTracks ? topTracks : topTracks.slice(0, 5);
 
   const handlePlayArtist = async () => {
@@ -177,6 +284,18 @@ export default function ArtistPage({ params }: PageProps) {
             <h1 className="text-4xl font-bold md:text-5xl lg:text-6xl">
               {artist.name}
             </h1>
+            {biographyLoading ? (
+              <div className="mx-auto mt-2 h-10 w-full max-w-sm animate-pulse rounded-lg bg-muted/60" />
+            ) : biography ? (
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                onClick={() => setBiographyOpen(true)}
+                className="mx-auto mt-2 max-w-lg cursor-pointer text-sm leading-6 text-muted-foreground transition-colors line-clamp-3 hover:text-foreground"
+              >
+                {biography.biography}
+              </button>
+            ) : null}
             <div className="mt-2 flex items-center justify-center gap-4 text-sm text-muted-foreground">
               <div className="flex items-center gap-1">
                 <Users className="size-4" />
@@ -210,6 +329,61 @@ export default function ArtistPage({ params }: PageProps) {
           </div>
         </div>
       </div>
+
+      {biography && (
+        <Dialog open={biographyOpen} onOpenChange={setBiographyOpen}>
+          <DialogContent className="w-[min(46rem,calc(100vw-2rem))] grid-rows-[auto_minmax(0,1fr)_auto]">
+            <DialogHeader className="border-b border-border/70 px-7 py-6 pr-16">
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <BookOpenText className="size-5" />
+                </div>
+                <div className="min-w-0">
+                  <DialogDescription className="text-xs font-medium uppercase tracking-[0.18em]">
+                    About the artist
+                  </DialogDescription>
+                  <DialogTitle className="truncate text-2xl">{artist.name}</DialogTitle>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="overflow-y-auto px-7 py-6">
+              {(biography.genre || biography.style || biography.mood) && (
+                <div className="mb-6 flex flex-wrap gap-2">
+                  {[biography.genre, biography.style, biography.mood]
+                    .filter((value): value is string => Boolean(value))
+                    .map((value) => (
+                      <span
+                        key={value}
+                        className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground"
+                      >
+                        {value}
+                      </span>
+                    ))}
+                </div>
+              )}
+              <p className="whitespace-pre-line text-[15px] leading-7 text-muted-foreground">
+                {biography.biography}
+              </p>
+            </div>
+
+            <DialogFooter className="justify-between border-t border-border/70 px-7 py-4">
+              <a
+                href={biography.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Information from TheAudioDB
+                <ExternalLink className="size-3" />
+              </a>
+              <DialogClose className="inline-flex h-9 items-center justify-center rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90">
+                Done
+              </DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Top Tracks */}
       <section className="px-6 py-8">
@@ -304,23 +478,60 @@ export default function ArtistPage({ params }: PageProps) {
 
       {/* Discography */}
       <section className="px-6 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold">
-            Discography
-          </h2>
-          {albums.length > 8 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAllAlbums(!showAllAlbums)}
-              className="text-muted-foreground hover:text-foreground"
+        <div className="mb-6 flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-bold">Discography</h2>
+            </div>
+            {filteredAlbums.length > 8 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAllAlbums(!showAllAlbums)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                {showAllAlbums ? (
+                  <>Show Less <ChevronUp className="ml-1 size-4" /></>
+                ) : (
+                  <>Show All ({filteredAlbums.length}) <ChevronDown className="ml-1 size-4" /></>
+                )}
+              </Button>
+            )}
+          </div>
+
+          {!albumsLoading && availableDiscographyCategories.length > 0 && (
+            <div
+              className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide"
+              role="tablist"
+              aria-label="Discography formats"
             >
-              {showAllAlbums ? (
-                <>Show Less <ChevronUp className="ml-1 size-4" /></>
-              ) : (
-                <>Show All ({albums.length}) <ChevronDown className="ml-1 size-4" /></>
-              )}
-            </Button>
+              {availableDiscographyCategories.map(({ key, label }) => {
+                const isActive = key === activeDiscographyCategory;
+
+                return (
+                  <Button
+                    key={key}
+                    id={`discography-tab-${key}`}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    aria-controls={`discography-${key}`}
+                    variant={isActive ? "default" : "secondary"}
+                    size="sm"
+                    className="shrink-0 rounded-full px-4"
+                    onClick={() => {
+                      setDiscographyCategory(key);
+                      setShowAllAlbums(false);
+                    }}
+                  >
+                    {label}
+                    <span className={isActive ? "text-primary-foreground/70" : "text-muted-foreground"}>
+                      {groupedDiscography[key].length}
+                    </span>
+                  </Button>
+                );
+              })}
+            </div>
           )}
         </div>
 
@@ -328,8 +539,13 @@ export default function ArtistPage({ params }: PageProps) {
           <div className="flex items-center justify-center py-8">
             <Spinner className="size-6" />
           </div>
-        ) : (
-          <div className="grid grid-cols-4 gap-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
+        ) : filteredAlbums.length > 0 ? (
+          <div
+            id={`discography-${activeDiscographyCategory}`}
+            role="tabpanel"
+            aria-labelledby={`discography-tab-${activeDiscographyCategory}`}
+            className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8"
+          >
             {displayedAlbums.map((album) => (
               <Link
                 key={album.id}
@@ -361,10 +577,14 @@ export default function ArtistPage({ params }: PageProps) {
                 </div>
                 <h3 className="mt-2 truncate font-medium">{album.name}</h3>
                 <p className="text-sm text-muted-foreground">
-                  {album.release_date?.split("-")[0]} • {album.album_type === "single" ? "Single" : "Album"}
+                  {album.release_date?.split("-")[0]} • {activeCategoryDetails.singular}
                 </p>
               </Link>
             ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed py-10 text-center text-sm text-muted-foreground">
+            No discography releases found
           </div>
         )}
       </section>

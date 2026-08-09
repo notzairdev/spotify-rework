@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { isTauriContext } from "@/lib/env";
 import { Titlebar } from "@/components/tauri/titlebar";
 import { PlayerBar } from "@/components/player";
+import { PageViewport } from "@/components/page-viewport";
 import { LoginCard } from "@/components/auth/login-card";
 import { useSpotifyPlayer } from "@/lib/spotify";
 import { Window } from "@tauri-apps/api/window";
@@ -120,9 +121,9 @@ export function AppGate({ children }: AppGateProps) {
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       <Titlebar />
-      <main className="flex-1 overflow-y-auto scrollbar-hide">
+      <PageViewport>
         {children}
-      </main>
+      </PageViewport>
       <div
         className={`shrink-0 transition-opacity duration-300 ${showPlayerBar ? "opacity-100" : "opacity-0 pointer-events-none"}`}
       >

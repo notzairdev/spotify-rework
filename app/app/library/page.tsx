@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Grid, List, Plus, Search, Play } from "lucide-react";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { SortablePlaylists } from "@/components/library/sortable-playlists";
 import { cn } from "@/lib/utils";
+import { usePreservedPageState } from "@/lib/page-state";
 import {
   useMyPlaylists,
   useSavedAlbums,
@@ -21,9 +22,9 @@ type Filter = "all" | "playlists" | "albums" | "artists";
 type ViewMode = "grid" | "list";
 
 export default function LibraryPage() {
-  const [filter, setFilter] = useState<Filter>("all");
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [filter, setFilter] = usePreservedPageState<Filter>("filter", "all");
+  const [viewMode, setViewMode] = usePreservedPageState<ViewMode>("view-mode", "grid");
+  const [searchQuery, setSearchQuery] = usePreservedPageState("search-query", "");
 
   // Fetch data
   const { data: playlistsData, isLoading: playlistsLoading } = useMyPlaylists();
