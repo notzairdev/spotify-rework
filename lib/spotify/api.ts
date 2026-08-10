@@ -242,12 +242,23 @@ async function spotifyFetch<T>(
     throw new Error(`Spotify API error: ${response.status} - ${errorText}`);
   }
 
-  // Some endpoints return empty response (204)
+  // Spotify also returns 200 with an empty body for some successful mutations
+  // (including the unified library endpoints), so status alone is insufficient.
   if (response.status === 204) {
     return {} as T;
   }
 
-  return response.json();
+  const responseBody = await response.text();
+  if (!responseBody.trim()) {
+    return {} as T;
+  }
+
+  try {
+    return JSON.parse(responseBody) as T;
+  } catch (parseError) {
+    devError("Spotify API returned invalid JSON:", parseError);
+    throw new Error("Spotify returned an unreadable response");
+  }
 }
 
 // ============================================================================
@@ -714,21 +725,27 @@ export async function getSavedTracks(
  * Save tracks to library
  */
 export async function saveTracks(ids: string[]): Promise<void> {
-  await spotifyFetch(`/me/tracks?ids=${ids.join(",")}`, { method: "PUT" });
+  const uris = ids.map((id) => `spotify:track:${id}`);
+  const params = new URLSearchParams({ uris: uris.join(",") });
+  await spotifyFetch(`/me/library?${params}`, { method: "PUT" });
 }
 
 /**
  * Remove tracks from library
  */
 export async function removeTracks(ids: string[]): Promise<void> {
-  await spotifyFetch(`/me/tracks?ids=${ids.join(",")}`, { method: "DELETE" });
+  const uris = ids.map((id) => `spotify:track:${id}`);
+  const params = new URLSearchParams({ uris: uris.join(",") });
+  await spotifyFetch(`/me/library?${params}`, { method: "DELETE" });
 }
 
 /**
  * Check if tracks are saved
  */
 export async function checkSavedTracks(ids: string[]): Promise<boolean[]> {
-  return spotifyFetch<boolean[]>(`/me/tracks/contains?ids=${ids.join(",")}`);
+  const uris = ids.map((id) => `spotify:track:${id}`);
+  const params = new URLSearchParams({ uris: uris.join(",") });
+  return spotifyFetch<boolean[]>(`/me/library/contains?${params}`);
 }
 
 /**

@@ -34,7 +34,7 @@ export function LibrarySidebar({
   return (
     <aside
       aria-label="Your library"
-      className="hidden min-h-0 overflow-hidden pt-14 shadow-[0_22px_80px_rgba(0,0,0,0.12)] xl:flex xl:flex-col"
+      className="hidden min-h-0 overflow-hidden pt-14 xl:flex xl:flex-col"
     >
       <div className={cn("flex h-14 shrink-0 items-center px-3", expanded ? "gap-1 px-4" : "justify-center")}>
         {expanded && (

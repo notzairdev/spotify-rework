@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import {
   Play,
   Pause,
@@ -15,6 +16,20 @@ import { useFullscreen } from "@/lib/fullscreen";
 import { cn } from "@/lib/utils";
 import { extractDominantColor, hslToString, type HSL } from "@/lib/utils/color-extractor";
 import { QueuePopover } from "./queue-popover";
+import { toast } from "sonner";
+
+async function runIslandAction(
+  action: () => Promise<void>,
+  message: string,
+) {
+  try {
+    await action();
+  } catch (error) {
+    toast.error(message, {
+      description: error instanceof Error ? error.message : undefined,
+    });
+  }
+}
 
 /**
  * Compact Dynamic Island for lyrics view
@@ -25,8 +40,8 @@ export function DynamicIsland() {
   const [isHovered, setIsHovered] = useState(false);
   const [ambientColor, setAmbientColor] = useState<HSL | null>(null);
   const [isVisible, setIsVisible] = useState(false);
-  const { state, togglePlay, nextTrack, previousTrack } = useSpotifyPlayer();
-  const { isLiked, toggleLike } = useTrackLike();
+  const { state, isControlling, togglePlay, nextTrack, previousTrack } = useSpotifyPlayer();
+  const { isLiked, isLoading: likeLoading, toggleLike } = useTrackLike();
   const { isFullscreen, toggleFullscreen } = useFullscreen();
 
   const track = state?.track;
@@ -132,16 +147,28 @@ export function DynamicIsland() {
         >
           {/* Album art - vinyl record effect */}
           <div className="relative">
-            <img
-              src={albumArt}
-              alt={track.name}
-              className={cn(
-                "rounded-full object-cover shadow-lg border border-white/10",
-                "transition-[width,height] duration-500",
-                isHovered ? "w-10 h-10" : "w-9 h-9",
-                isPlaying && "animate-[spin_8s_linear_infinite]"
-              )}
-            />
+            {albumArt ? (
+              <Image
+                src={albumArt}
+                alt={track.name}
+                width={40}
+                height={40}
+                className={cn(
+                  "rounded-full object-cover shadow-lg border border-white/10",
+                  "transition-[width,height] duration-500",
+                  isHovered ? "w-10 h-10" : "w-9 h-9",
+                  isPlaying && "animate-[spin_8s_linear_infinite]"
+                )}
+              />
+            ) : (
+              <div
+                className={cn(
+                  "rounded-full border border-white/10 bg-white/10",
+                  "transition-[width,height] duration-500",
+                  isHovered ? "size-10" : "size-9",
+                )}
+              />
+            )}
             {/* Center dot like a vinyl */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="w-2 h-2 rounded-full bg-black/50 border border-white/20" />
@@ -166,7 +193,10 @@ export function DynamicIsland() {
           {/* Controls */}
           <div className="flex items-center gap-0.5">
             <button
-              onClick={previousTrack}
+              onClick={() =>
+                void runIslandAction(previousTrack, "Could not go to the previous track")
+              }
+              disabled={isControlling}
               aria-label="Previous track"
               className="p-1.5 text-white/60 hover:text-white transition-colors"
             >
@@ -174,7 +204,8 @@ export function DynamicIsland() {
             </button>
 
             <button
-              onClick={togglePlay}
+              onClick={() => void runIslandAction(togglePlay, "Could not change playback")}
+              disabled={isControlling}
               aria-label={isPlaying ? "Pause" : "Play"}
               className={cn(
                 "rounded-full bg-white text-black flex items-center justify-center",
@@ -190,7 +221,10 @@ export function DynamicIsland() {
             </button>
 
             <button
-              onClick={nextTrack}
+              onClick={() =>
+                void runIslandAction(nextTrack, "Could not skip to the next track")
+              }
+              disabled={isControlling}
               aria-label="Next track"
               className="p-1.5 text-white/60 hover:text-white transition-colors"
             >
@@ -206,7 +240,10 @@ export function DynamicIsland() {
             )}
           >
             <button
-              onClick={toggleLike}
+              onClick={() =>
+                void runIslandAction(toggleLike, "Could not update Liked Songs")
+              }
+              disabled={likeLoading}
               aria-label={isLiked ? "Remove from Liked Songs" : "Save to Liked Songs"}
               className={cn(
                 "p-1.5",

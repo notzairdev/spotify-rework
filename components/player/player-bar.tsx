@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import Image from "next/image";
 import {
   Play,
   Pause,
@@ -36,12 +37,15 @@ import {
 export function PlayerBar() {
   const pathname = usePathname();
   const [ambientColor, setAmbientColor] = useState<HSL | null>(null);
+  const [seekPreview, setSeekPreview] = useState<number | null>(null);
+  const [volumePreview, setVolumePreview] = useState<number | null>(null);
 
   const { isAuthenticated, isPremium } = useAuth();
   const { lyricsAvailable } = useLyricsContext();
   const {
     state,
     isReady,
+    isControlling,
     error,
     togglePlay,
     nextTrack,
@@ -58,11 +62,13 @@ export function PlayerBar() {
 
   const toastShownRef = useRef<string | null>(null);
   const toastRequestRef = useRef<string | null>(null);
+  const lastAudibleVolumeRef = useRef(0.5);
 
-  const currentProgress =
+  const playbackProgress =
     state?.position != null && state?.duration != null && state.duration > 0
       ? (state.position / state.duration) * 100
       : 0;
+  const currentProgress = seekPreview ?? playbackProgress;
 
   const track = state?.track;
   const albumArt = track?.album.images[0]?.url;
@@ -92,6 +98,13 @@ export function PlayerBar() {
     toastShownRef.current = null;
     toastRequestRef.current = null;
   }, [trackId]);
+
+  useEffect(() => {
+    const currentVolume = state?.volume;
+    if (currentVolume != null && currentVolume > 0) {
+      lastAudibleVolumeRef.current = currentVolume;
+    }
+  }, [state?.volume]);
 
   // Resolve Up Next from a fresh queue snapshot at the moment it is needed.
   useEffect(() => {
@@ -141,11 +154,65 @@ export function PlayerBar() {
     repeatMode,
   ]);
 
-  const handleSeek = (value: number[]) => {
-    if (state?.duration) {
-      const positionMs = (value[0] / 100) * state.duration;
-      seek(positionMs);
+  const runPlayerAction = useCallback(
+    async (action: () => Promise<void>, failureMessage: string) => {
+      try {
+        await action();
+      } catch (actionError) {
+        toast.error(failureMessage, {
+          description:
+            actionError instanceof Error
+              ? actionError.message
+              : "Spotify could not complete this action.",
+        });
+      }
+    },
+    [],
+  );
+
+  const handleLike = async () => {
+    const nextLikedState = !isLiked;
+    try {
+      await toggleLike();
+      toast.success(
+        nextLikedState ? "Added to Liked Songs" : "Removed from Liked Songs",
+        { description: track?.name },
+      );
+    } catch (actionError) {
+      toast.error("Could not update Liked Songs", {
+        description:
+          actionError instanceof Error
+            ? actionError.message
+            : "Spotify could not complete this action.",
+      });
     }
+  };
+
+  const commitSeek = async (value: number[]) => {
+    if (!state?.duration) return;
+    const positionMs = (value[0] / 100) * state.duration;
+    await runPlayerAction(() => seek(positionMs), "Could not seek playback");
+    setSeekPreview(null);
+  };
+
+  const commitVolume = async (value: number[]) => {
+    await runPlayerAction(
+      () => setVolume(value[0] / 100),
+      "Could not change volume",
+    );
+    setVolumePreview(null);
+  };
+
+  const toggleMute = async () => {
+    const currentVolume = state?.volume ?? 0.5;
+    if (currentVolume > 0) {
+      lastAudibleVolumeRef.current = currentVolume;
+    }
+    const nextVolume = currentVolume === 0 ? lastAudibleVolumeRef.current : 0;
+    await runPlayerAction(
+      () => setVolume(nextVolume),
+      "Could not change volume",
+    );
   };
 
   // Don't render if not authenticated
@@ -224,16 +291,18 @@ export function PlayerBar() {
 
       <div
         className={cn(
-          "backdrop-blur-2xl border border-white/10 rounded-4xl shadow-2xl shadow-black/40",
+          "backdrop-blur-2xl border border-white/10 rounded-4xl shadow-2xl shadow-black/40 bg-card/75",
         )}
       >
         <div className="flex items-center px-5 py-3 gap-4">
           {/* Album art with spinning animation */}
           <div className="relative shrink-0">
             {albumArt ? (
-              <img
+              <Image
                 src={albumArt}
                 alt={track?.album.name}
+                width={56}
+                height={56}
                 className={cn(
                   "w-14 h-14 rounded-full object-cover shadow-lg",
                   isPlaying && "animate-[spin_8s_linear_infinite]",
@@ -274,7 +343,12 @@ export function PlayerBar() {
                   Not playing
                 </p>
                 <button
-                  onClick={transferPlayback}
+                  onClick={() =>
+                    void runPlayerAction(
+                      () => transferPlayback(false),
+                      "Could not connect playback",
+                    )
+                  }
                   className="text-[10px] text-primary hover:underline"
                 >
                   Transfer here
@@ -286,7 +360,7 @@ export function PlayerBar() {
           {/* Like button */}
           {track && (
             <button
-              onClick={toggleLike}
+              onClick={() => void handleLike()}
               aria-label={isLiked ? "Remove from Liked Songs" : "Save to Liked Songs"}
               disabled={likeLoading}
               className={cn(
@@ -305,7 +379,10 @@ export function PlayerBar() {
 
           {/* Shuffle */}
           <button
-            onClick={toggleShuffle}
+            onClick={() =>
+              void runPlayerAction(toggleShuffle, "Could not change shuffle mode")
+            }
+            disabled={isControlling}
             aria-label={state?.shuffle ? "Disable shuffle" : "Enable shuffle"}
             className={cn(
               "p-2 rounded-full transition-colors",
@@ -320,7 +397,10 @@ export function PlayerBar() {
           {/* Main controls */}
           <div className="flex items-center gap-1">
             <button
-              onClick={previousTrack}
+              onClick={() =>
+                void runPlayerAction(previousTrack, "Could not go to the previous track")
+              }
+              disabled={isControlling}
               aria-label="Previous track"
               className="p-2 text-muted-foreground hover:text-foreground transition-colors"
             >
@@ -328,7 +408,10 @@ export function PlayerBar() {
             </button>
 
             <button
-              onClick={togglePlay}
+              onClick={() =>
+                void runPlayerAction(togglePlay, "Could not change playback")
+              }
+              disabled={isControlling}
               aria-label={isPlaying ? "Pause" : "Play"}
               className="w-11 h-11 rounded-full bg-foreground text-background flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shadow-lg"
             >
@@ -340,7 +423,10 @@ export function PlayerBar() {
             </button>
 
             <button
-              onClick={nextTrack}
+              onClick={() =>
+                void runPlayerAction(nextTrack, "Could not skip to the next track")
+              }
+              disabled={isControlling}
               aria-label="Next track"
               className="p-2 text-muted-foreground hover:text-foreground transition-colors"
             >
@@ -350,7 +436,10 @@ export function PlayerBar() {
 
           {/* Repeat */}
           <button
-            onClick={cycleRepeatMode}
+            onClick={() =>
+              void runPlayerAction(cycleRepeatMode, "Could not change repeat mode")
+            }
+            disabled={isControlling}
             aria-label={
               state?.repeatMode === "track"
                 ? "Turn repeat off"
@@ -413,7 +502,8 @@ export function PlayerBar() {
           {/* Volume */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setVolume(state?.volume === 0 ? 0.5 : 0)}
+              onClick={() => void toggleMute()}
+              disabled={isControlling}
               aria-label={state?.volume === 0 ? "Unmute" : "Mute"}
               className="p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors shrink-0"
             >
@@ -426,8 +516,10 @@ export function PlayerBar() {
               )}
             </button>
             <Slider
-              value={[(state?.volume ?? 0.5) * 100]}
-              onValueChange={(value) => setVolume(value[0] / 100)}
+              value={[volumePreview ?? (state?.volume ?? 0.5) * 100]}
+              onValueChange={(value) => setVolumePreview(value[0])}
+              onValueCommit={(value) => void commitVolume(value)}
+              disabled={isControlling}
               max={100}
               step={1}
               className="w-20 opacity-70 hover:opacity-100 transition-opacity"
@@ -442,7 +534,9 @@ export function PlayerBar() {
         <div className="h-6 px-4 pb-2">
           <Slider
             value={[currentProgress]}
-            onValueChange={handleSeek}
+            onValueChange={(value) => setSeekPreview(value[0])}
+            onValueCommit={(value) => void commitSeek(value)}
+            disabled={isControlling}
             max={100}
             step={0.1}
             className="w-full"

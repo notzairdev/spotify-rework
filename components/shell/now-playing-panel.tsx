@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, type UIEvent } from "react";
 import Image from "next/image";
-import { ExternalLink, Heart, Music2, Pause, Play } from "lucide-react";
+import { ExternalLink, Music2, Pause, Play } from "lucide-react";
+import { toast } from "sonner";
 import { AnimatedArtwork } from "@/components/media/animated-artwork";
 import { NowPlayingLyrics } from "@/components/lyrics/now-playing-lyrics";
 import { useAnimatedArtwork } from "@/lib/animated-artwork";
@@ -11,22 +12,22 @@ import {
   useSpotifyTrackSuggestions,
   useTrackCredits,
 } from "@/lib/music-data";
-import { startPlayback, useSpotifyPlayer, useTrackLike } from "@/lib/spotify";
-import { cn } from "@/lib/utils";
+import { startPlayback, useSpotifyPlayer } from "@/lib/spotify";
 
 async function playRecommendation(uri: string) {
   try {
     await startPlayback({ uris: [uri] });
   } catch (error) {
-    console.error("Failed to play recommendation:", error);
+    toast.error("Could not play this track", {
+      description: error instanceof Error ? error.message : undefined,
+    });
   }
 }
 
 export function NowPlayingPanel() {
-  const { state, togglePlay } = useSpotifyPlayer();
+  const { state, isControlling, togglePlay } = useSpotifyPlayer();
   const artworkLayerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const { isLiked, isLoading: likeLoading, toggleLike } = useTrackLike();
   const track = state?.track;
   const imageUrl = track?.album.images[0]?.url;
   const primaryArtist = track?.artists[0] ?? null;
@@ -39,6 +40,12 @@ export function NowPlayingPanel() {
     useSpotifyTrackSuggestions(track?.id ?? null);
   const { data: credits, isLoading: creditsLoading } = useTrackCredits(track?.id ?? null);
   const { data: trackInfo } = useAudioDbTrackInfo(primaryArtist, track?.name ?? null);
+  const hasTrackInfo = [
+    trackInfo?.description,
+    trackInfo?.genre,
+    trackInfo?.mood,
+    trackInfo?.style,
+  ].some((value) => Boolean(value?.trim()));
   const progress = state?.duration
     ? Math.min(100, Math.max(0, (state.position / state.duration) * 100))
     : 0;
@@ -67,16 +74,26 @@ export function NowPlayingPanel() {
 
   const recommendations = suggestions?.tracks ?? [];
 
+  const handleTogglePlay = async () => {
+    try {
+      await togglePlay();
+    } catch (error) {
+      toast.error("Could not change playback", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
+  };
+
   return (
     <aside
       aria-label="Now playing"
-      className="relative hidden h-full min-h-0 overflow-hidden rounded-l-2xl border-l border-white/6 bg-card shadow-[0_22px_80px_rgba(0,0,0,0.14)] 2xl:flex 2xl:flex-col"
+      className="relative hidden h-full min-h-0 overflow-hidden border-l border-white/6 bg-card shadow-[0_22px_80px_rgba(0,0,0,0.14)] 2xl:flex 2xl:flex-col"
     >
       <div className="pointer-events-none absolute inset-0">
         <div
           ref={artworkLayerRef}
           data-now-playing-artwork
-          className="absolute inset-0"
+          className="absolute inset-0 h-[60%]"
           style={{
             opacity: 0.5,
             maskImage: "linear-gradient(to bottom, black 0%, black 46%, rgba(0,0,0,.72) 68%, transparent 100%)",
@@ -106,9 +123,10 @@ export function NowPlayingPanel() {
           <div className="relative h-[23rem]">
             <button
               type="button"
-              onClick={() => void togglePlay()}
+              onClick={() => void handleTogglePlay()}
+              disabled={isControlling}
               aria-label={state?.isPlaying ? "Pause" : "Play"}
-              className="absolute bottom-8 right-5 flex size-11 items-center justify-center rounded-full bg-white text-black shadow-xl transition-transform hover:scale-105"
+              className="pointer-events-auto absolute bottom-0 right-5 z-30 flex size-11 items-center justify-center rounded-full bg-white text-black shadow-xl transition-transform hover:scale-105 disabled:opacity-60"
             >
               {state?.isPlaying ? (
                 <Pause className="size-4 fill-current" />
@@ -118,28 +136,13 @@ export function NowPlayingPanel() {
             </button>
           </div>
 
-          <div className="relative -mt-10 space-y-4 px-4">
+          <div className="relative z-10 -mt-10 space-y-4 px-4">
             <div className="px-1">
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-3 pointer-events-none">
                 <div className="min-w-0 flex-1">
                   <h2 className="line-clamp-2 text-xl font-semibold leading-tight tracking-tight">{track.name}</h2>
                   <p className="mt-1.5 truncate text-sm text-muted-foreground">{track.artists.join(", ")}</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => void toggleLike()}
-                  disabled={likeLoading}
-                  aria-label={isLiked ? "Remove from Liked Songs" : "Save to Liked Songs"}
-                  className={cn(
-                    "flex size-9 shrink-0 items-center justify-center rounded-full transition-colors",
-                    isLiked
-                      ? "bg-primary/12 text-primary"
-                      : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground",
-                    likeLoading && "opacity-50"
-                  )}
-                >
-                  <Heart className={cn("size-4", isLiked && "fill-current")} />
-                </button>
               </div>
 
               <div className="mt-5">
@@ -207,7 +210,7 @@ export function NowPlayingPanel() {
               </section>
             )}
 
-            {trackInfo && (
+            {trackInfo && hasTrackInfo && (
               <section className="rounded-2xl border border-white/8 bg-white/4 p-4">
                 <div className="flex flex-wrap gap-1.5">
                   {[

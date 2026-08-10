@@ -104,7 +104,7 @@ export function SortablePlaylists({ playlists, viewMode, onPlay }: SortablePlayl
     >
       <SortableContext items={orderedPlaylists.map((p) => p.id)} strategy={strategy}>
         {viewMode === "grid" ? (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
             {orderedPlaylists.map((playlist) => (
               <SortablePlaylistGridItem
                 key={playlist.id}
@@ -114,7 +114,7 @@ export function SortablePlaylists({ playlists, viewMode, onPlay }: SortablePlayl
             ))}
           </div>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-border">
+          <div className="space-y-1 rounded-3xl border border-white/8 bg-card/25 p-2 backdrop-blur-xl">
             {orderedPlaylists.map((playlist) => (
               <SortablePlaylistListItem
                 key={playlist.id}
@@ -153,47 +153,47 @@ function SortablePlaylistGridItem({ playlist, onPlay }: SortablePlaylistItemProp
       ref={setNodeRef}
       style={style}
       className={cn(
-        "group relative",
-        isDragging && "z-50 opacity-90"
+        "group relative min-w-0 rounded-3xl border border-transparent p-2 transition-colors hover:border-white/8 hover:bg-white/4",
+        isDragging && "z-50 border-white/10 bg-card opacity-90 shadow-2xl"
       )}
     >
       {/* Drag handle overlay */}
       <div
         {...attributes}
         {...listeners}
-        className="absolute top-2 left-2 z-10 p-1.5 rounded-md bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+        className="absolute left-4 top-4 z-20 cursor-grab rounded-full bg-black/70 p-1.5 opacity-0 backdrop-blur-md transition-opacity group-hover:opacity-100 active:cursor-grabbing"
       >
         <GripVertical className="w-4 h-4 text-white" />
       </div>
       
       <Link href={`/app/playlist/${playlist.id}`} className="block">
-        <div className="relative aspect-square overflow-hidden rounded-lg">
+        <div className="relative aspect-square overflow-hidden rounded-2xl bg-muted shadow-lg shadow-black/15">
           {playlist.images?.[0]?.url ? (
             <Image
               src={playlist.images[0].url}
               alt={playlist.name}
               fill
               sizes="(min-width: 1024px) 12.5vw, (min-width: 640px) 20vw, 50vw"
-              className="object-cover transition-transform group-hover:scale-105"
+              className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
             />
           ) : (
             <div className="flex size-full items-center justify-center bg-muted">
               <span className="text-4xl text-muted-foreground">♪</span>
             </div>
           )}
-          <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/45 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100">
             <Button
               size="icon"
-              className="size-12 rounded-full"
+              className="pointer-events-auto absolute bottom-3 right-3 size-11 translate-y-2 rounded-full bg-foreground text-background opacity-0 shadow-xl transition-[opacity,transform] group-hover:translate-y-0 group-hover:opacity-100"
               onClick={(e) => onPlay?.(e, playlist.uri)}
             >
               <Play className="size-5 fill-current" />
             </Button>
           </div>
         </div>
-        <h3 className="mt-2 truncate font-medium">{playlist.name}</h3>
-        <p className="truncate text-sm text-muted-foreground">
-          Playlist • {playlist.owner.display_name}
+        <h3 className="mt-3 truncate px-1 text-sm font-semibold">{playlist.name}</h3>
+        <p className="mt-1 truncate px-1 text-[11px] text-muted-foreground">
+          Playlist · {playlist.owner.display_name}
         </p>
       </Link>
     </div>
@@ -220,24 +220,24 @@ function SortablePlaylistListItem({ playlist }: { playlist: SpotifyPlaylist }) {
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex items-center gap-4 p-3 transition-colors hover:bg-muted/50",
-        isDragging && "z-50 opacity-90 bg-muted"
+        "flex items-center gap-3 rounded-2xl p-2.5 transition-colors hover:bg-white/5",
+        isDragging && "z-50 bg-muted opacity-90 shadow-xl"
       )}
     >
       {/* Drag handle */}
       <div
         {...attributes}
         {...listeners}
-        className="p-1 rounded cursor-grab active:cursor-grabbing hover:bg-muted"
+        className="cursor-grab rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-white/7 hover:text-foreground active:cursor-grabbing"
       >
         <GripVertical className="w-4 h-4 text-muted-foreground" />
       </div>
       
       <Link
         href={`/app/playlist/${playlist.id}`}
-        className="flex items-center gap-4 flex-1 min-w-0"
+        className="flex min-w-0 flex-1 items-center gap-3"
       >
-        <div className="relative size-14 shrink-0 overflow-hidden rounded-lg">
+        <div className="relative size-13 shrink-0 overflow-hidden rounded-xl bg-muted shadow-md">
           {playlist.images?.[0]?.url ? (
             <Image
               src={playlist.images[0].url}
@@ -253,9 +253,9 @@ function SortablePlaylistListItem({ playlist }: { playlist: SpotifyPlaylist }) {
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium">{playlist.name}</p>
-          <p className="truncate text-sm text-muted-foreground">
-            Playlist • {playlist.owner.display_name}
+          <p className="truncate text-sm font-medium">{playlist.name}</p>
+          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+            Playlist · {playlist.owner.display_name}
           </p>
         </div>
       </Link>
