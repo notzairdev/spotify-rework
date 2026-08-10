@@ -181,7 +181,7 @@ export default function ProfilePage() {
             {publicPlaylists.map((playlist) => (
               <Link
                 key={playlist.id}
-                href={`/app/playlist/${playlist.id}`}
+                href={`/app/playlist?id=${playlist.id}`}
                 className="group"
               >
                 <div className="relative aspect-square overflow-hidden rounded-lg transition-transform group-hover:scale-105">

@@ -253,7 +253,7 @@ export default function LibraryPage() {
                 filteredPlaylists.map((playlist) => (
                   <Link
                     key={playlist.id}
-                    href={`/app/playlist/${playlist.id}`}
+                    href={`/app/playlist?id=${playlist.id}`}
                     className="group min-w-0 rounded-3xl border border-transparent p-2 transition-colors hover:border-white/8 hover:bg-white/4"
                   >
                     <div className="relative aspect-square overflow-hidden rounded-2xl bg-muted shadow-lg shadow-black/15">
@@ -292,7 +292,7 @@ export default function LibraryPage() {
             filteredAlbums.map(({ album }) => (
               <Link
                 key={album.id}
-                href={`/app/album/${album.id}`}
+                href={`/app/album?id=${album.id}`}
                 className="group min-w-0 rounded-3xl border border-transparent p-2 transition-colors hover:border-white/8 hover:bg-white/4"
               >
                 <div className="relative aspect-square overflow-hidden rounded-2xl bg-muted shadow-lg shadow-black/15">
@@ -333,7 +333,7 @@ export default function LibraryPage() {
             filteredArtists.map((artist) => (
               <Link
                 key={artist.id}
-                href={`/app/artist/${artist.id}`}
+                href={`/app/artist?id=${artist.id}`}
                 className="group min-w-0 rounded-3xl border border-transparent p-2 text-left transition-colors hover:border-white/8 hover:bg-white/4"
               >
                 <div className="relative mx-auto aspect-square overflow-hidden rounded-full bg-muted shadow-lg shadow-black/15">
@@ -379,7 +379,7 @@ export default function LibraryPage() {
                 filteredPlaylists.map((playlist) => (
                   <Link
                     key={playlist.id}
-                    href={`/app/playlist/${playlist.id}`}
+                    href={`/app/playlist?id=${playlist.id}`}
                     className="group flex items-center gap-3 rounded-2xl p-2.5 transition-colors hover:bg-white/5"
                   >
                     <div className="relative size-13 shrink-0 overflow-hidden rounded-xl bg-muted shadow-md">
@@ -411,7 +411,7 @@ export default function LibraryPage() {
             filteredAlbums.map(({ album }) => (
               <Link
                 key={album.id}
-                href={`/app/album/${album.id}`}
+                href={`/app/album?id=${album.id}`}
                 className="group flex items-center gap-3 rounded-2xl p-2.5 transition-colors hover:bg-white/5"
               >
                 <div className="relative size-13 shrink-0 overflow-hidden rounded-xl bg-muted shadow-md">
@@ -443,7 +443,7 @@ export default function LibraryPage() {
             filteredArtists.map((artist) => (
               <Link
                 key={artist.id}
-                href={`/app/artist/${artist.id}`}
+                href={`/app/artist?id=${artist.id}`}
                 className="group flex items-center gap-3 rounded-2xl p-2.5 transition-colors hover:bg-white/5"
               >
                 <div className="relative size-13 shrink-0 overflow-hidden rounded-full bg-muted shadow-md">

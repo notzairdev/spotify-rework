@@ -1,19 +1,14 @@
 "use client";
 
-import { use } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Play, Music } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useUser, useUserPlaylists, useCurrentUser } from "@/lib/spotify/hooks";
 import { startPlayback } from "@/lib/spotify/api";
-
-interface PageProps {
-  params: Promise<{ id: string }>;
-}
 
 async function playPlaylist(event: React.MouseEvent, uri: string) {
   event.preventDefault();
@@ -25,8 +20,8 @@ async function playPlaylist(event: React.MouseEvent, uri: string) {
   }
 }
 
-export default function UserProfilePage({ params }: PageProps) {
-  const { id } = use(params);
+export default function UserProfilePage() {
+  const id = useSearchParams().get("id") ?? "";
   const router = useRouter();
 
   const { data: user, isLoading: userLoading } = useUser(id);
@@ -127,7 +122,7 @@ export default function UserProfilePage({ params }: PageProps) {
             {publicPlaylists.map((playlist) => (
               <Link
                 key={playlist.id}
-                href={`/app/playlist/${playlist.id}`}
+                href={`/app/playlist?id=${playlist.id}`}
                 className="group"
               >
                 <div className="relative aspect-square overflow-hidden rounded-lg transition-transform group-hover:scale-105">

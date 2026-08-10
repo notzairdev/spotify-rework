@@ -166,7 +166,7 @@ function SortablePlaylistGridItem({ playlist, onPlay }: SortablePlaylistItemProp
         <GripVertical className="w-4 h-4 text-white" />
       </div>
       
-      <Link href={`/app/playlist/${playlist.id}`} className="block">
+      <Link href={`/app/playlist?id=${playlist.id}`} className="block">
         <div className="relative aspect-square overflow-hidden rounded-2xl bg-muted shadow-lg shadow-black/15">
           {playlist.images?.[0]?.url ? (
             <Image
@@ -234,7 +234,7 @@ function SortablePlaylistListItem({ playlist }: { playlist: SpotifyPlaylist }) {
       </div>
       
       <Link
-        href={`/app/playlist/${playlist.id}`}
+        href={`/app/playlist?id=${playlist.id}`}
         className="flex min-w-0 flex-1 items-center gap-3"
       >
         <div className="relative size-13 shrink-0 overflow-hidden rounded-xl bg-muted shadow-md">

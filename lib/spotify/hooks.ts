@@ -47,6 +47,13 @@ interface SpotifyQueryOptions {
 const DEFAULT_STALE_TIME = 5 * 60 * 1000;
 const COLLECTION_STALE_TIME = 2 * 60 * 1000;
 const DETAIL_STALE_TIME = 15 * 60 * 1000;
+const SEARCH_STALE_TIME = 15 * 60 * 1000;
+const SEARCH_TYPES: spotifyApi.SearchType[] = [
+  "track",
+  "artist",
+  "album",
+  "playlist",
+];
 
 function useSpotifyQuery<T>(
   queryKey: string | null,
@@ -394,7 +401,7 @@ export function useSearch() {
     async (
       query: string,
       types: spotifyApi.SearchType[] = ["track", "artist", "album", "playlist"],
-      limit: number = 20
+      limit: number = 10
     ) => {
       if (!query.trim()) {
         setResults(null);
@@ -680,16 +687,25 @@ export function useFeaturedPlaylists(limit: number = 20) {
 /**
  * Debounced search hook - waits for user to stop typing
  */
-export function useDebouncedSearch(debounceMs: number = 2000) {
+export function useDebouncedSearch(debounceMs: number = 350) {
   const [query, setQuery] = usePreservedPageState("spotify-search.query", "");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [results, setResults] = usePreservedPageState<spotifyApi.SpotifySearchResults | null>(
-    "spotify-search.results",
-    null
-  );
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const normalizedDebouncedQuery = debouncedQuery.trim().replace(/\s+/g, " ");
+  const searchKey = normalizedDebouncedQuery
+    ? `search:${normalizedDebouncedQuery.toLocaleLowerCase()}:${SEARCH_TYPES.join(",")}:10`
+    : null;
+  const {
+    data: results,
+    isLoading,
+    error,
+    refetch,
+  } = useSpotifyQuery(
+    searchKey,
+    () => spotifyApi.search(normalizedDebouncedQuery, SEARCH_TYPES, 10),
+    { enabled: Boolean(normalizedDebouncedQuery), staleTime: SEARCH_STALE_TIME },
+  );
 
   // Debounce the query
   useEffect(() => {
@@ -700,7 +716,6 @@ export function useDebouncedSearch(debounceMs: number = 2000) {
     const normalizedQuery = query.trim();
     timeoutRef.current = setTimeout(() => {
       setDebouncedQuery(normalizedQuery);
-      if (!normalizedQuery) setResults(null);
     }, normalizedQuery ? debounceMs : 0);
 
     return () => {
@@ -708,45 +723,18 @@ export function useDebouncedSearch(debounceMs: number = 2000) {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [query, debounceMs, setResults]);
+  }, [query, debounceMs]);
 
-  // Execute search when debounced query changes
-  useEffect(() => {
-    if (!debouncedQuery.trim()) {
-      return;
-    }
-
-    let cancelled = false;
-    const executeSearch = async () => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const data = await spotifyApi.search(
-          debouncedQuery,
-          ["track", "artist", "album", "playlist"],
-          20
-        );
-        if (!cancelled) setResults(data);
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e : new Error(String(e)));
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    };
-
-    void executeSearch();
-    return () => {
-      cancelled = true;
-    };
-  }, [debouncedQuery, setResults]);
+  const searchNow = useCallback((nextQuery?: string) => {
+    const value = (nextQuery ?? query).trim().replace(/\s+/g, " ");
+    if (nextQuery !== undefined) setQuery(nextQuery);
+    setDebouncedQuery(value);
+  }, [query, setQuery]);
 
   const clear = useCallback(() => {
     setQuery("");
     setDebouncedQuery("");
-    setResults(null);
-    setError(null);
-  }, [setQuery, setResults]);
+  }, [setQuery]);
 
   return {
     query,
@@ -755,6 +743,9 @@ export function useDebouncedSearch(debounceMs: number = 2000) {
     isLoading,
     error,
     clear,
+    refetch,
+    searchNow,
+    searchedQuery: normalizedDebouncedQuery,
     isSearching: query !== debouncedQuery && query.trim().length > 0,
   };
 }

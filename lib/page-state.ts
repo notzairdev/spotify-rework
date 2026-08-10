@@ -6,7 +6,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 const MAX_PRESERVED_VALUES = 250;
 const preservedPageState = new Map<string, unknown>();
@@ -33,7 +33,10 @@ export function usePreservedPageState<T>(
   initialValue: T
 ): [T, Dispatch<SetStateAction<T>>] {
   const pathname = usePathname();
-  const cacheKey = `${pathname}::${stateKey}`;
+  const searchParams = useSearchParams();
+  const query = searchParams.toString();
+  const routeKey = query ? `${pathname}?${query}` : pathname;
+  const cacheKey = `${routeKey}::${stateKey}`;
   const [, rerender] = useReducer((version: number) => version + 1, 0);
 
   const value = preservedPageState.has(cacheKey)

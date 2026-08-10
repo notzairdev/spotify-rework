@@ -1,14 +1,11 @@
 "use client";
 
-import { use } from "react";
 import { Play, Music } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useCategoryPlaylists, startPlayback } from "@/lib/spotify";
-
-interface CategoryPageProps {
-  params: Promise<{ id: string }>;
-}
 
 async function playPlaylist(uri: string) {
   try {
@@ -18,8 +15,8 @@ async function playPlaylist(uri: string) {
   }
 }
 
-export default function CategoryPage({ params }: CategoryPageProps) {
-  const { id } = use(params);
+export default function CategoryPage() {
+  const id = useSearchParams().get("id") ?? "";
   const { data, isLoading } = useCategoryPlaylists(id, 50);
 
   // Filter out null items (API can return nulls)
@@ -57,15 +54,17 @@ export default function CategoryPage({ params }: CategoryPageProps) {
           {playlists.map((playlist) => (
             <Link
               key={playlist.id}
-              href={`/app/playlist/${playlist.id}`}
+              href={`/app/playlist?id=${playlist.id}`}
               className="group"
             >
               <div className="relative aspect-square mb-3 rounded-xl overflow-hidden">
                 {playlist.images[0]?.url ? (
-                  <img
+                  <Image
                     src={playlist.images[0].url}
                     alt={playlist.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    fill
+                    sizes="(min-width: 1024px) 20vw, (min-width: 640px) 25vw, 50vw"
+                    className="object-cover transition-transform group-hover:scale-105"
                   />
                 ) : (
                   <div className="w-full h-full bg-muted flex items-center justify-center">

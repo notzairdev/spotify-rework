@@ -1,7 +1,7 @@
 "use client";
 
-import { use, useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -124,12 +124,8 @@ function deduplicateAlbums(albums: SpotifyAlbum[]): SpotifyAlbum[] {
   });
 }
 
-interface PageProps {
-  params: Promise<{ id: string }>;
-}
-
-export default function ArtistPage({ params }: PageProps) {
-  const { id } = use(params);
+export default function ArtistPage() {
+  const id = useSearchParams().get("id") ?? "";
   const router = useRouter();
 
   const { data: artist, isLoading: artistLoading } = useArtist(id);
@@ -453,7 +449,7 @@ export default function ArtistPage({ params }: PageProps) {
 
                   {track.album?.id ? (
                     <Link
-                      href={`/app/album/${track.album.id}`}
+                      href={`/app/album?id=${track.album.id}`}
                       className="hidden truncate text-sm text-muted-foreground hover:underline md:block"
                       onClick={(e) => e.stopPropagation()}
                     >
@@ -548,7 +544,7 @@ export default function ArtistPage({ params }: PageProps) {
             {displayedAlbums.map((album) => (
               <Link
                 key={album.id}
-                href={`/app/album/${album.id}`}
+                href={`/app/album?id=${album.id}`}
                 className="group"
               >
                 <div className="relative aspect-square overflow-hidden rounded-lg transition-transform group-hover:scale-105">
@@ -605,7 +601,7 @@ export default function ArtistPage({ params }: PageProps) {
               {appearsOn.slice(0, 10).map((album) => (
                 <Link
                   key={album.id}
-                  href={`/app/album/${album.id}`}
+                  href={`/app/album?id=${album.id}`}
                   className="group shrink-0 w-36"
                 >
                   <div className="relative aspect-square overflow-hidden rounded-lg transition-transform group-hover:scale-105">
@@ -657,7 +653,7 @@ export default function ArtistPage({ params }: PageProps) {
               {relatedArtists.slice(0, 8).map((relatedArtist) => (
                 <Link
                   key={relatedArtist.id}
-                  href={`/app/artist/${relatedArtist.id}`}
+                  href={`/app/artist?id=${relatedArtist.id}`}
                   className="group shrink-0 text-center"
                 >
                   <div className="relative size-32 overflow-hidden rounded-full transition-transform group-hover:scale-105">

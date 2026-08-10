@@ -91,6 +91,14 @@ Notas importantes
 - En modo desarrollo de Spotify, solo usuarios registrados en la app pueden iniciar sesión.
 - El cifrado de sesión se basa en datos de hardware; esto evita copiar sesiones entre equipos.
 
+Actualizaciones y releases
+- La aplicación comprueba al iniciar el `latest.json` del último GitHub Release publicado. También se puede comprobar manualmente desde Configuración.
+- Los instaladores de actualización están firmados. La clave privada nunca debe añadirse al repositorio ni regenerarse después de publicar la primera versión.
+- El workflow `.github/workflows/release.yml` compila Windows, Linux x64/ARM64 y macOS Intel/Apple Silicon, genera `latest.json` y deja el release como borrador.
+- GitHub requiere los secrets `TAURI_SIGNING_PRIVATE_KEY` y `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, además de la variable pública `SPOTIFY_CLIENT_ID`.
+- Antes de crear un release, actualiza la misma versión SemVer en `package.json`, `src-tauri/Cargo.toml` y `src-tauri/tauri.conf.json`; `npm run version:check` valida que coincidan.
+- Para preparar un release usa un tag `vX.Y.Z` o ejecuta el workflow manualmente. Revisa los artefactos del borrador y publícalo desde GitHub cuando esté listo; los borradores no llegan al updater.
+
 Contribuir
 1. Haz fork del repositorio.
 2. Crea una rama de trabajo: `feature/mi-cambio`.

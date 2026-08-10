@@ -1,7 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, type ReactNode } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   getPreservedScrollPosition,
   setPreservedScrollPosition,
@@ -15,13 +15,16 @@ interface PageViewportProps {
 
 export function PageViewport({ children, className }: PageViewportProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const query = searchParams.toString();
+  const routeKey = query ? `${pathname}?${query}` : pathname;
   const viewportRef = useRef<HTMLElement>(null);
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
 
-    const savedScrollTop = getPreservedScrollPosition(pathname) ?? 0;
+    const savedScrollTop = getPreservedScrollPosition(routeKey) ?? 0;
     let restorationFrame: number | null = null;
     let restorationTimeout: number | null = null;
     let restorationObserver: ResizeObserver | null = null;
@@ -52,7 +55,7 @@ export function PageViewport({ children, className }: PageViewportProps) {
 
     const saveScroll = () => {
       if (!isRestoring) {
-        setPreservedScrollPosition(pathname, viewport.scrollTop);
+        setPreservedScrollPosition(routeKey, viewport.scrollTop);
       }
     };
 
@@ -75,7 +78,7 @@ export function PageViewport({ children, className }: PageViewportProps) {
 
     return () => {
       setPreservedScrollPosition(
-        pathname,
+        routeKey,
         isRestoring ? savedScrollTop : viewport.scrollTop
       );
       stopRestoring();
@@ -84,7 +87,7 @@ export function PageViewport({ children, className }: PageViewportProps) {
       viewport.removeEventListener("touchstart", stopRestoring);
       viewport.removeEventListener("pointerdown", stopRestoring);
     };
-  }, [pathname]);
+  }, [routeKey]);
 
   return (
     <main

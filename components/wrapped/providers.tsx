@@ -9,6 +9,7 @@ import { FullscreenProvider } from '@/lib/fullscreen';
 import { AppGate } from '@/components/app-gate';
 import { ContextMenuBlocker } from '@/components/context-menu-blocker';
 import { TooltipProvider } from '../ui/tooltip';
+import { UpdateProvider } from '@/lib/tauri/updater';
 
 interface ProvidersProps {
   children: ReactNode;
@@ -18,19 +19,21 @@ export const Providers: FC<ProvidersProps> = ({ children }) => {
   return (
     <ThemeProvider attribute="class" defaultTheme='dark'>
       <ContextMenuBlocker />
-      <AuthProvider>
-        <FullscreenProvider>
-          <SpotifyPlayerProvider>
-            <LyricsProvider>
-              <TooltipProvider>
-                <AppGate>
-                  {children}
-                </AppGate>
-              </TooltipProvider>
-            </LyricsProvider>
-          </SpotifyPlayerProvider>
-        </FullscreenProvider>
-      </AuthProvider>
+      <UpdateProvider>
+        <AuthProvider>
+          <FullscreenProvider>
+            <SpotifyPlayerProvider>
+              <LyricsProvider>
+                <TooltipProvider>
+                  <AppGate>
+                    {children}
+                  </AppGate>
+                </TooltipProvider>
+              </LyricsProvider>
+            </SpotifyPlayerProvider>
+          </FullscreenProvider>
+        </AuthProvider>
+      </UpdateProvider>
     </ThemeProvider>
   );
 }

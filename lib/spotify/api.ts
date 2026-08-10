@@ -638,7 +638,7 @@ export type SearchType = "track" | "artist" | "album" | "playlist";
 export async function search(
   query: string,
   types: SearchType[] = ["track", "artist", "album", "playlist"],
-  limit: number = 20,
+  limit: number = 10,
   offset: number = 0,
   market?: string
 ): Promise<SpotifySearchResults> {
@@ -658,7 +658,7 @@ export async function search(
  */
 export async function searchTracks(
   query: string,
-  limit: number = 20,
+  limit: number = 10,
   offset: number = 0
 ): Promise<SpotifyTrack[]> {
   const results = await search(query, ["track"], limit, offset);
@@ -670,7 +670,7 @@ export async function searchTracks(
  */
 export async function searchArtists(
   query: string,
-  limit: number = 20,
+  limit: number = 10,
   offset: number = 0
 ): Promise<SpotifyArtist[]> {
   const results = await search(query, ["artist"], limit, offset);
@@ -682,7 +682,7 @@ export async function searchArtists(
  */
 export async function searchAlbums(
   query: string,
-  limit: number = 20,
+  limit: number = 10,
   offset: number = 0
 ): Promise<SpotifyAlbum[]> {
   const results = await search(query, ["album"], limit, offset);
@@ -694,7 +694,7 @@ export async function searchAlbums(
  */
 export async function searchPlaylists(
   query: string,
-  limit: number = 20,
+  limit: number = 10,
   offset: number = 0
 ): Promise<SpotifyPlaylist[]> {
   const results = await search(query, ["playlist"], limit, offset);

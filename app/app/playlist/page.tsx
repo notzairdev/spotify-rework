@@ -1,7 +1,7 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -44,12 +44,8 @@ function formatDuration(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-interface PageProps {
-  params: Promise<{ id: string }>;
-}
-
-export default function PlaylistPage({ params }: PageProps) {
-  const { id } = use(params);
+export default function PlaylistPage() {
+  const id = useSearchParams().get("id") ?? "";
   const router = useRouter();
 
   const { data: playlist, isLoading: playlistLoading } = usePlaylist(id);
@@ -190,7 +186,7 @@ export default function PlaylistPage({ params }: PageProps) {
               Playlist
             </span>
             <Link
-              href={`/app/profile/${playlist.owner.id}`}
+              href={`/app/user?id=${playlist.owner.id}`}
               className="text-xs font-medium uppercase tracking-wider text-muted-foreground bg-card inline-block px-2 py-1 rounded-sm w-fit hover:underline"
             >
               Created by <span className="text-white">{playlist.owner.display_name}</span>
@@ -365,7 +361,7 @@ export default function PlaylistPage({ params }: PageProps) {
                   <div className="flex min-w-0 items-center gap-3">
                     {track.album?.images?.[0]?.url && track.album?.id && (
                       <Link
-                        href={`/app/album/${track.album.id}`}
+                        href={`/app/album?id=${track.album.id}`}
                         onClick={(e) => e.stopPropagation()}
                       >
                         <Image
@@ -385,7 +381,7 @@ export default function PlaylistPage({ params }: PageProps) {
                         {track.artists.map((a, i) => (
                           <span key={a.id}>
                             <Link
-                              href={`/app/artist/${a.id}`}
+                              href={`/app/artist?id=${a.id}`}
                               onClick={(e) => e.stopPropagation()}
                               className="hover:text-foreground hover:underline transition-colors"
                             >
@@ -401,7 +397,7 @@ export default function PlaylistPage({ params }: PageProps) {
                   {/* Album */}
                   {track.album?.id ? (
                     <Link
-                      href={`/app/album/${track.album.id}`}
+                      href={`/app/album?id=${track.album.id}`}
                       onClick={(e) => e.stopPropagation()}
                       className="hidden truncate text-sm text-muted-foreground md:block text-end pr-5 hover:text-foreground hover:underline transition-colors"
                     >

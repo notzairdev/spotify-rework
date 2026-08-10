@@ -23,7 +23,9 @@ serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.9.5", features = [] }
 tauri-plugin-log = "2"
+tauri-plugin-process = "2"
 tauri-plugin-shell = "2"
+tauri-plugin-updater = "2.10.0"
 
 # HTTP client for Spotify API
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }

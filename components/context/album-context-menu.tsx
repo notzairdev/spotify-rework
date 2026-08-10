@@ -194,7 +194,7 @@ export function AlbumContextMenu({
         {/* Go to artist */}
         {artistId && (
           <ContextMenuItem asChild>
-            <Link href={`/app/artist/${artistId}`}>
+            <Link href={`/app/artist?id=${artistId}`}>
               <User className="mr-2 h-4 w-4" />
               Go to Artist
             </Link>

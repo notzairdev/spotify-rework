@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useWindow } from "@/hooks";
 import { useAuth } from "@/lib/auth";
@@ -50,6 +50,9 @@ const NAV_ITEMS = [
 export function Titlebar() {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const query = searchParams.toString();
+  const currentLocation = query ? `${pathname}?${query}` : pathname;
   const { isFullscreen } = useFullscreen();
   // Navigation history tracking
   const [navigationHistory, setNavigationHistory] = useState<NavigationHistory>(
@@ -81,17 +84,17 @@ export function Titlebar() {
           previousHistory.index + 1
         );
 
-        if (truncatedEntries[truncatedEntries.length - 1] === pathname) {
+        if (truncatedEntries[truncatedEntries.length - 1] === currentLocation) {
           return previousHistory;
         }
 
-        const entries = [...truncatedEntries, pathname];
+        const entries = [...truncatedEntries, currentLocation];
         return { entries, index: entries.length - 1 };
       });
     }, 0);
 
     return () => window.clearTimeout(updateTimer);
-  }, [pathname]);
+  }, [currentLocation, pathname]);
 
   const canGoBack = navigationHistory.index > 0;
   const canGoForward = navigationHistory.index < navigationHistory.entries.length - 1;

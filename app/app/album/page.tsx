@@ -1,7 +1,7 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -52,12 +52,8 @@ function formatCopyrightText(copyright: { text: string; type: "C" | "P" }) {
   return `${label}: ${text}`;
 }
 
-interface PageProps {
-  params: Promise<{ id: string }>;
-}
-
-export default function AlbumPage({ params }: PageProps) {
-  const { id } = use(params);
+export default function AlbumPage() {
+  const id = useSearchParams().get("id") ?? "";
   const router = useRouter();
 
   const { data: album, isLoading: albumLoading } = useAlbum(id);
@@ -270,7 +266,7 @@ export default function AlbumPage({ params }: PageProps) {
             {album.artists?.map((artist, i) => (
               <span key={artist.id}>
                 <Link
-                  href={`/app/artist/${artist.id}`}
+                  href={`/app/artist?id=${artist.id}`}
                   className="text-primary hover:underline"
                 >
                   {artist.name}
@@ -335,7 +331,7 @@ export default function AlbumPage({ params }: PageProps) {
                       {track.artists?.map((artist, i) => (
                         <span key={artist.id}>
                           <Link
-                            href={`/app/artist/${artist.id}`}
+                            href={`/app/artist?id=${artist.id}`}
                             className="hover:underline"
                             onClick={(e) => e.stopPropagation()}
                           >

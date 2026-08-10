@@ -87,7 +87,7 @@ export function LibrarySidebar({
               />
             ))
           : playlists.map((playlist) => {
-              const href = `/app/playlist/${playlist.id}`;
+              const href = `/app/playlist?id=${playlist.id}`;
               const isActive = pathname === href;
 
               return (

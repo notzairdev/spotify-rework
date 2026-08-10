@@ -164,11 +164,8 @@ export function NowPlayingPanel() {
             {(recommendationsLoading || recommendations.length > 0) && (
               <section className="rounded-2xl border border-white/8 bg-white/4 p-3">
                 <div className="px-1 pb-2 pt-1">
-                  <p className="text-xs font-semibold">
+                  <p className="font-semibold">
                     {`More from ${primaryArtist}`}
-                  </p>
-                  <p className="mt-0.5 text-[10px] text-muted-foreground">
-                    Top tracks from the same artist on Spotify
                   </p>
                 </div>
                 <div className="space-y-1">
@@ -227,7 +224,7 @@ export function NowPlayingPanel() {
                     ))}
                 </div>
                 {trackInfo.description && (
-                  <p className="mt-3 line-clamp-5 text-xs leading-relaxed text-muted-foreground">
+                  <p className="mt-3 line-clamp-5 leading-relaxed text-muted-foreground">
                     {trackInfo.description}
                   </p>
                 )}
@@ -245,7 +242,7 @@ export function NowPlayingPanel() {
 
             <section className="rounded-2xl border border-white/8 bg-white/4 p-4">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold">Credits</p>
+                <p className="font-semibold">Credits</p>
                 {credits && (
                   <a
                     href={credits.sourceUrl}

@@ -105,7 +105,7 @@ export default function HomePage() {
     try {
       const album = await resolveTrendOnSpotify(trend);
       if (album) {
-        router.push(`/app/album/${album.id}`);
+        router.push(`/app/album?id=${album.id}`);
       } else {
         toast.error("This release is not available in the Spotify catalog.");
       }
@@ -202,7 +202,7 @@ export default function HomePage() {
                   size="lg"
                   className="h-11 rounded-full border-white/20 bg-black/20 px-5 text-white hover:bg-white/10 hover:text-white"
                 >
-                  <Link href={`/app/album/${spotlightTrack.album.id}`}>
+                  <Link href={`/app/album?id=${spotlightTrack.album.id}`}>
                     View album
                   </Link>
                 </Button>
@@ -392,7 +392,7 @@ export default function HomePage() {
                     key={playlist.id}
                     className="group flex min-w-0 items-center gap-4 rounded-3xl border border-border/50 bg-card/45 p-3 transition-[transform,background-color,box-shadow] hover:-translate-y-0.5 hover:bg-card hover:shadow-xl hover:shadow-black/10"
                   >
-                    <Link href={`/app/playlist/${playlist.id}`} className="shrink-0">
+                    <Link href={`/app/playlist?id=${playlist.id}`} className="shrink-0">
                       <CoverImage
                         src={playlist.images?.[0]?.url}
                         alt={playlist.name}
@@ -401,7 +401,7 @@ export default function HomePage() {
                       />
                     </Link>
                     <div className="min-w-0 flex-1">
-                      <Link href={`/app/playlist/${playlist.id}`} className="font-semibold hover:underline">
+                      <Link href={`/app/playlist?id=${playlist.id}`} className="font-semibold hover:underline">
                         <span className="block truncate">{playlist.name}</span>
                       </Link>
                       <p className="mt-1 truncate text-xs text-muted-foreground">
@@ -459,7 +459,7 @@ export default function HomePage() {
               : topArtists.map((artist) => (
                   <Link
                     key={artist.id}
-                    href={`/app/artist/${artist.id}`}
+                    href={`/app/artist?id=${artist.id}`}
                     className="group w-32 shrink-0 text-center"
                   >
                     <div className="relative mx-auto size-28 overflow-hidden rounded-full border border-border/60 bg-muted shadow-lg transition-transform group-hover:scale-105">
@@ -529,7 +529,7 @@ function AlbumCard({
   return (
     <article className="group min-w-0">
       <div className="relative aspect-square overflow-hidden rounded-2xl bg-muted shadow-lg">
-        <Link href={`/app/album/${album.id}`} className="relative block size-full">
+        <Link href={`/app/album?id=${album.id}`} className="relative block size-full">
           {album.images[0]?.url ? (
             <Image
               src={album.images[0].url}
@@ -554,7 +554,7 @@ function AlbumCard({
           <Play className="size-4 fill-current" />
         </button>
       </div>
-      <Link href={`/app/album/${album.id}`} className="mt-3 block truncate text-sm font-semibold hover:underline">
+      <Link href={`/app/album?id=${album.id}`} className="mt-3 block truncate text-sm font-semibold hover:underline">
         {album.name}
       </Link>
       <p className={cn("mt-1 truncate text-xs text-muted-foreground", compact && "text-[11px]")}>
@@ -575,7 +575,7 @@ function RecommendationCard({
 }) {
   return (
     <article className="group flex min-w-0 items-center gap-3 rounded-2xl border border-border/45 bg-card/35 p-2.5 transition-colors hover:border-border hover:bg-card/70">
-      <Link href={`/app/album/${track.album.id}`} className="shrink-0">
+      <Link href={`/app/album?id=${track.album.id}`} className="shrink-0">
         <CoverImage
           src={track.album.images[0]?.url}
           alt={track.album.name}
