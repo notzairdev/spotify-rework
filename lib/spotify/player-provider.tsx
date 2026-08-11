@@ -5,15 +5,17 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useEffectEvent,
   useMemo,
+  useReducer,
   useRef,
-  useState,
   type ReactNode,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import { devError, devLog, isTauriContext } from "@/lib/env";
 import { useAuth } from "@/lib/auth";
+import { useAppSettings } from "@/lib/settings";
 import type { SpotifyDevice } from "@/lib/spotify/api";
 
 // Spotify Web Playback SDK types
@@ -31,9 +33,12 @@ export interface PlaybackState {
   position: number;
   track: {
     id: string;
+    uri?: string;
     name: string;
     artists: string[];
+    artistIds?: string[];
     album: {
+      id?: string;
       name: string;
       images: { url: string; width: number; height: number }[];
     };
@@ -87,7 +92,6 @@ export interface SpotifyPlayerContextValue {
 const SpotifyPlayerContext = createContext<SpotifyPlayerContextValue | null>(null);
 
 const SPOTIFY_PLAYER_SDK_URL = "https://sdk.scdn.co/spotify-player.js";
-const VOLUME_STORAGE_KEY = "spotify-rework-volume:v1";
 const ISLAND_STATE_STORAGE_KEY = "spotify-rework-island-state:v1";
 const LOCAL_DEVICE_CONFIRMATION_TTL = 8_000;
 
@@ -108,31 +112,6 @@ async function assertSpotifyResponse(response: Response, action: string) {
   throw new Error(
     `${action} failed (${response.status})${reason ? `: ${reason}` : ""}`,
   );
-}
-
-/**
- * Get saved volume from localStorage
- */
-function getSavedVolume(): number {
-  if (typeof window === "undefined") return 0.5;
-  try {
-    const saved = localStorage.getItem(VOLUME_STORAGE_KEY);
-    if (saved) {
-      const vol = parseFloat(saved);
-      if (!isNaN(vol) && vol >= 0 && vol <= 1) return vol;
-    }
-  } catch {}
-  return 0.5;
-}
-
-/**
- * Save volume to localStorage
- */
-function saveVolume(volume: number): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(VOLUME_STORAGE_KEY, volume.toString());
-  } catch {}
 }
 
 interface SpotifyPlayerProviderProps {
@@ -164,43 +143,173 @@ async function checkEMESupport(): Promise<boolean> {
   }
 }
 
-function disposeSpotifyPlayer(player: Spotify.Player) {
-  player.removeListener("initialization_error");
-  player.removeListener("authentication_error");
-  player.removeListener("account_error");
-  player.removeListener("playback_error");
-  player.removeListener("ready");
-  player.removeListener("not_ready");
-  player.removeListener("player_state_changed");
+interface PlayerRuntimeState {
+  player: Spotify.Player | null;
+  deviceId: string | null;
+  playbackState: PlaybackState | null;
+  isReady: boolean;
+  isLoading: boolean;
+  error: string | null;
+  isControlling: boolean;
+  isPlaybackLocal: boolean;
+  sdkLoaded: boolean;
+  emeSupported: boolean | null;
+  retryCount: number;
+}
+
+type PlayerRuntimeAction =
+  | { type: "patch"; patch: Partial<PlayerRuntimeState> }
+  | {
+      type: "update-playback";
+      update:
+        | PlaybackState
+        | null
+        | ((current: PlaybackState | null) => PlaybackState | null);
+    }
+  | { type: "retry" };
+
+const INITIAL_PLAYER_RUNTIME: PlayerRuntimeState = {
+  player: null,
+  deviceId: null,
+  playbackState: null,
+  isReady: false,
+  isLoading: false,
+  error: null,
+  isControlling: false,
+  isPlaybackLocal: false,
+  sdkLoaded: false,
+  emeSupported: null,
+  retryCount: 0,
+};
+
+function playerRuntimeReducer(
+  current: PlayerRuntimeState,
+  action: PlayerRuntimeAction,
+): PlayerRuntimeState {
+  if (action.type === "patch") {
+    return { ...current, ...action.patch };
+  }
+
+  if (action.type === "retry") {
+    return {
+      ...current,
+      player: null,
+      deviceId: null,
+      isReady: false,
+      isLoading: false,
+      isPlaybackLocal: false,
+      error: null,
+      retryCount: current.retryCount + 1,
+    };
+  }
+
+  return {
+    ...current,
+    playbackState:
+      typeof action.update === "function"
+        ? action.update(current.playbackState)
+        : action.update,
+  };
+}
+
+interface SpotifyPlayerListeners {
+  initializationError: Spotify.ErrorListener;
+  authenticationError: Spotify.ErrorListener;
+  accountError: Spotify.ErrorListener;
+  playbackError: Spotify.ErrorListener;
+  ready: Spotify.PlaybackInstanceListener;
+  notReady: Spotify.PlaybackInstanceListener;
+  stateChanged: Spotify.PlaybackStateListener;
+}
+
+function attachSpotifyPlayerListeners(
+  player: Spotify.Player,
+  listeners: SpotifyPlayerListeners,
+) {
+  player.addListener("initialization_error", listeners.initializationError);
+  player.addListener("authentication_error", listeners.authenticationError);
+  player.addListener("account_error", listeners.accountError);
+  player.addListener("playback_error", listeners.playbackError);
+  player.addListener("ready", listeners.ready);
+  player.addListener("not_ready", listeners.notReady);
+  player.addListener("player_state_changed", listeners.stateChanged);
+
+  return () => {
+    player.removeListener("initialization_error", listeners.initializationError);
+    player.removeListener("authentication_error", listeners.authenticationError);
+    player.removeListener("account_error", listeners.accountError);
+    player.removeListener("playback_error", listeners.playbackError);
+    player.removeListener("ready", listeners.ready);
+    player.removeListener("not_ready", listeners.notReady);
+    player.removeListener("player_state_changed", listeners.stateChanged);
+  };
+}
+
+function disposeSpotifyPlayer(
+  player: Spotify.Player,
+  detachListeners?: () => void,
+) {
+  detachListeners?.();
   player.disconnect();
 }
 
-export function SpotifyPlayerProvider({
-  children,
-  playerName = "Spotify Rework",
-}: SpotifyPlayerProviderProps) {
+function useSpotifyPlayerController(playerName: string): SpotifyPlayerContextValue {
   const { isAuthenticated, isPremium, accessToken } = useAuth();
-  const [player, setPlayer] = useState<Spotify.Player | null>(null);
-  const [deviceId, setDeviceId] = useState<string | null>(null);
-  const [state, setState] = useState<PlaybackState | null>(null);
-  const [isReady, setIsReady] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isControlling, setIsControlling] = useState(false);
-  const [isPlaybackLocal, setIsPlaybackLocal] = useState(false);
-  const [sdkLoaded, setSdkLoaded] = useState(false);
-  const [emeSupported, setEmeSupported] = useState<boolean | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
+  const { settings, isLoaded: settingsLoaded, updateSettings } = useAppSettings();
+  const hasAccessToken = Boolean(accessToken);
+  const [runtime, dispatch] = useReducer(
+    playerRuntimeReducer,
+    INITIAL_PLAYER_RUNTIME,
+  );
+  const {
+    player,
+    deviceId,
+    playbackState: state,
+    isReady,
+    isLoading,
+    error,
+    isControlling,
+    isPlaybackLocal,
+    sdkLoaded,
+    emeSupported,
+    retryCount,
+  } = runtime;
+  const patchRuntime = useCallback(
+    (patch: Partial<PlayerRuntimeState>) => dispatch({ type: "patch", patch }),
+    [],
+  );
+  const setState = useCallback(
+    (
+      update:
+        | PlaybackState
+        | null
+        | ((current: PlaybackState | null) => PlaybackState | null),
+    ) => dispatch({ type: "update-playback", update }),
+    [],
+  );
   
-  // Use saved volume or default
-  const initialVolume = useMemo(() => getSavedVolume(), []);
-
   const playerRef = useRef<Spotify.Player | null>(null);
+  const detachPlayerListenersRef = useRef<(() => void) | null>(null);
   const stateRef = useRef<PlaybackState | null>(null);
   const accessTokenRef = useRef<string | null>(null);
   const hasAutoTransferredRef = useRef(false);
   const controlInFlightRef = useRef<Promise<void> | null>(null);
   const localPlaybackConfirmedAtRef = useRef(0);
+  const startupVolumeRef = useRef(settings.playback.startupVolume);
+  const autoTransferPlaybackRef = useRef(settings.playback.autoTransferPlayback);
+  const savePlaybackStateRef = useRef(settings.privacy.savePlaybackState);
+
+  const disposeCurrentPlayer = useCallback(() => {
+    const currentPlayer = playerRef.current;
+    if (!currentPlayer) return;
+
+    disposeSpotifyPlayer(
+      currentPlayer,
+      detachPlayerListenersRef.current ?? undefined,
+    );
+    detachPlayerListenersRef.current = null;
+    playerRef.current = null;
+  }, []);
 
   // Keep token ref updated
   useEffect(() => {
@@ -211,16 +320,29 @@ export function SpotifyPlayerProvider({
     stateRef.current = state;
   }, [state]);
 
+  useEffect(() => {
+    startupVolumeRef.current = settings.playback.startupVolume;
+    autoTransferPlaybackRef.current = settings.playback.autoTransferPlayback;
+    savePlaybackStateRef.current = settings.privacy.savePlaybackState;
+  }, [
+    settings.playback.autoTransferPlayback,
+    settings.playback.startupVolume,
+    settings.privacy.savePlaybackState,
+  ]);
+
   // Check EME support on mount
   useEffect(() => {
     checkEMESupport().then((supported) => {
-      setEmeSupported(supported);
+      patchRuntime({ emeSupported: supported });
       if (!supported) {
         devLog("EME/Widevine not supported on this platform");
-        setError("Playback not available: This platform doesn't support DRM (Widevine). Use Spotify Connect from another device instead.");
+        patchRuntime({
+          error:
+            "Playback not available: This platform doesn't support DRM (Widevine). Use Spotify Connect from another device instead.",
+        });
       }
     });
-  }, []);
+  }, [patchRuntime]);
 
   // Load Spotify Web Playback SDK script (only if EME is supported)
   useEffect(() => {
@@ -238,7 +360,7 @@ export function SpotifyPlayerProvider({
       if (window.Spotify) {
         let cancelled = false;
         queueMicrotask(() => {
-          if (!cancelled) setSdkLoaded(true);
+          if (!cancelled) patchRuntime({ sdkLoaded: true });
         });
         return () => {
           cancelled = true;
@@ -254,12 +376,12 @@ export function SpotifyPlayerProvider({
 
     script.onerror = () => {
       devError("Failed to load Spotify SDK script");
-      setError("Failed to load Spotify SDK");
+      patchRuntime({ error: "Failed to load Spotify SDK" });
     };
 
     window.onSpotifyWebPlaybackSDKReady = () => {
       devLog("Spotify Web Playback SDK Ready");
-      setSdkLoaded(true);
+      patchRuntime({ sdkLoaded: true });
     };
 
     document.body.appendChild(script);
@@ -267,7 +389,7 @@ export function SpotifyPlayerProvider({
     return () => {
       // Don't remove script on cleanup - it should persist
     };
-  }, [emeSupported]);
+  }, [emeSupported, patchRuntime]);
 
   const getAccessToken = useCallback(async (): Promise<string> => {
     // Try fresh token from Tauri backend first
@@ -316,10 +438,10 @@ export function SpotifyPlayerProvider({
     [getAccessToken],
   );
 
-  const initializePlayer = useCallback(async () => {
+  const initializePlayer = useEffectEvent(async () => {
     if (!window.Spotify) {
       devError("Spotify SDK not available");
-      setError("Spotify SDK not loaded");
+      patchRuntime({ error: "Spotify SDK not loaded" });
       return;
     }
 
@@ -329,8 +451,8 @@ export function SpotifyPlayerProvider({
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
+    patchRuntime({ isLoading: true, error: null });
+    let waitsForReadyEvent = false;
 
     try {
       devLog("Initializing Spotify player...");
@@ -349,152 +471,169 @@ export function SpotifyPlayerProvider({
             cb("");
           }
         },
-        volume: initialVolume,
+        volume: startupVolumeRef.current,
       });
 
-      // Error handling
-      newPlayer.addListener("initialization_error", ({ message }) => {
-        devError("Player initialization error:", message);
-        setError(`Player initialization failed: ${message}`);
-        setIsLoading(false);
-      });
+      const detachListeners = attachSpotifyPlayerListeners(newPlayer, {
+        initializationError: ({ message }) => {
+          devError("Player initialization error:", message);
+          patchRuntime({
+            error: `Player initialization failed: ${message}`,
+            isLoading: false,
+          });
+        },
+        authenticationError: ({ message }) => {
+          devError("Player authentication error:", message);
+          patchRuntime({
+            error: `Authentication failed: ${message}`,
+            isLoading: false,
+          });
+        },
+        accountError: ({ message }) => {
+          devError("Player account error:", message);
+          patchRuntime({
+            error: `Account error: ${message}. Premium required.`,
+            isLoading: false,
+          });
+        },
+        playbackError: ({ message }) => {
+          devError("Playback error:", message);
+        },
+        ready: async ({ device_id }) => {
+          devLog("Player ready with device ID:", device_id);
+          patchRuntime({
+            deviceId: device_id,
+            isReady: true,
+            isLoading: false,
+            error: null,
+          });
 
-      newPlayer.addListener("authentication_error", ({ message }) => {
-        devError("Player authentication error:", message);
-        setError(`Authentication failed: ${message}`);
-        setIsLoading(false);
-      });
-
-      newPlayer.addListener("account_error", ({ message }) => {
-        devError("Player account error:", message);
-        setError(`Account error: ${message}. Premium required.`);
-        setIsLoading(false);
-      });
-
-      newPlayer.addListener("playback_error", ({ message }) => {
-        devError("Playback error:", message);
-        // Don't set error state for playback errors, just log
-      });
-
-      // Ready
-      newPlayer.addListener("ready", async ({ device_id }) => {
-        devLog("Player ready with device ID:", device_id);
-        setDeviceId(device_id);
-        setIsReady(true);
-        setIsLoading(false);
-        setError(null);
-        
-        // Auto-transfer playback to this device on first ready
-        if (!hasAutoTransferredRef.current) {
-          hasAutoTransferredRef.current = true;
-          try {
-            devLog("Auto-transferring playback to this device...");
-            await transferToDevice(device_id, false);
-            localPlaybackConfirmedAtRef.current = Date.now();
-            setIsPlaybackLocal(true);
-            devLog("Playback transferred successfully");
-          } catch (e) {
-            devError("Failed to auto-transfer playback:", e);
-            setIsPlaybackLocal(false);
-            // Don't set error - this is not critical
+          if (
+            autoTransferPlaybackRef.current &&
+            !hasAutoTransferredRef.current
+          ) {
+            hasAutoTransferredRef.current = true;
+            try {
+              devLog("Auto-transferring playback to this device...");
+              await transferToDevice(device_id, false);
+              localPlaybackConfirmedAtRef.current = Date.now();
+              patchRuntime({ isPlaybackLocal: true });
+              devLog("Playback transferred successfully");
+            } catch (autoTransferError) {
+              devError(
+                "Failed to auto-transfer playback:",
+                autoTransferError,
+              );
+              patchRuntime({ isPlaybackLocal: false });
+            }
           }
-        }
-      });
+        },
+        notReady: ({ device_id }) => {
+          devLog("Player not ready, device ID:", device_id);
+          patchRuntime({ isReady: false, isPlaybackLocal: false });
+        },
+        stateChanged: (sdkState) => {
+          if (!sdkState) {
+            setState(null);
+            return;
+          }
 
-      // Not ready
-      newPlayer.addListener("not_ready", ({ device_id }) => {
-        devLog("Player not ready, device ID:", device_id);
-        setIsReady(false);
-        setIsPlaybackLocal(false);
-      });
+          localPlaybackConfirmedAtRef.current = Date.now();
+          patchRuntime({ isPlaybackLocal: true });
 
-      // State changes
-      newPlayer.addListener("player_state_changed", (sdkState) => {
-        if (!sdkState) {
-          setState(null);
-          return;
-        }
+          const currentTrack = sdkState.track_window.current_track;
+          const nextState: PlaybackState = {
+            isPlaying: !sdkState.paused,
+            isPaused: sdkState.paused,
+            duration: sdkState.duration,
+            position: sdkState.position,
+            track: currentTrack
+              ? {
+                  id: currentTrack.id ?? "",
+                  uri: currentTrack.uri,
+                  name: currentTrack.name,
+                  artists: currentTrack.artists.map((artist) => artist.name),
+                  artistIds: currentTrack.artists.map((artist) =>
+                    spotifyEntityId(artist.uri, "artist"),
+                  ),
+                  album: {
+                    id: spotifyEntityId(currentTrack.album.uri, "album"),
+                    name: currentTrack.album.name,
+                    images: currentTrack.album.images.map((image) => ({
+                      url: image.url,
+                      width: image.width ?? 0,
+                      height: image.height ?? 0,
+                    })),
+                  },
+                }
+              : null,
+            volume: stateRef.current?.volume ?? startupVolumeRef.current,
+            shuffle: sdkState.shuffle,
+            repeatMode:
+              sdkState.repeat_mode === 0
+                ? "off"
+                : sdkState.repeat_mode === 1
+                  ? "track"
+                  : "context",
+          };
+          stateRef.current = nextState;
+          setState(nextState);
 
-        localPlaybackConfirmedAtRef.current = Date.now();
-        setIsPlaybackLocal(true);
-
-        const currentTrack = sdkState.track_window.current_track;
-        const newState = {
-          isPlaying: !sdkState.paused,
-          isPaused: sdkState.paused,
-          duration: sdkState.duration,
-          position: sdkState.position,
-          track: currentTrack
-            ? {
-                id: currentTrack.id ?? "",
-                name: currentTrack.name,
-                artists: currentTrack.artists.map((a) => a.name),
-                album: {
-                  name: currentTrack.album.name,
-                  images: currentTrack.album.images.map((img) => ({
-                    url: img.url,
-                    width: img.width ?? 0,
-                    height: img.height ?? 0,
-                  })),
-                },
-              }
-            : null,
-          shuffle: sdkState.shuffle,
-          repeatMode: (sdkState.repeat_mode === 0
-            ? "off"
-            : sdkState.repeat_mode === 1
-              ? "track"
-              : "context") as "off" | "context" | "track",
-        };
-        
-        const nextState = {
-          ...newState,
-          volume: stateRef.current?.volume ?? initialVolume,
-        };
-        stateRef.current = nextState;
-        setState(nextState);
-
-        if (isTauriContext()) {
-          void emit("spotify-player-state", nextState).catch(console.error);
-          localStorage.setItem(ISLAND_STATE_STORAGE_KEY, JSON.stringify(nextState));
-        }
+          if (isTauriContext()) {
+            void emit("spotify-player-state", nextState).catch(console.error);
+            if (savePlaybackStateRef.current) {
+              localStorage.setItem(
+                ISLAND_STATE_STORAGE_KEY,
+                JSON.stringify(nextState),
+              );
+            }
+          }
+        },
       });
 
       // Connect to Spotify
       devLog("Connecting player to Spotify...");
+      detachPlayerListenersRef.current = detachListeners;
       playerRef.current = newPlayer;
       const connected = await newPlayer.connect();
 
       // Initialization may have been cancelled while connect() was pending.
       if (playerRef.current !== newPlayer) {
-        disposeSpotifyPlayer(newPlayer);
+        disposeSpotifyPlayer(newPlayer, detachListeners);
         return;
       }
       
       if (connected) {
         devLog("Player connected successfully");
-        setPlayer(newPlayer);
+        waitsForReadyEvent = true;
+        patchRuntime({ player: newPlayer });
       } else {
-        disposeSpotifyPlayer(newPlayer);
+        disposeCurrentPlayer();
         playerRef.current = null;
         devError("Failed to connect player");
-        setError("Failed to connect to Spotify. Please try again.");
-        setIsLoading(false);
+        patchRuntime({
+          error: "Failed to connect to Spotify. Please try again.",
+        });
       }
-    } catch (e) {
-      if (playerRef.current) {
-        disposeSpotifyPlayer(playerRef.current);
-        playerRef.current = null;
+    } catch (initializationError) {
+      disposeCurrentPlayer();
+      devError("Failed to initialize player:", initializationError);
+      patchRuntime({
+        error:
+          initializationError instanceof Error
+            ? initializationError.message
+            : "Failed to initialize player",
+      });
+    } finally {
+      if (!waitsForReadyEvent) {
+        patchRuntime({ isLoading: false });
       }
-      devError("Failed to initialize player:", e);
-      setError(e instanceof Error ? e.message : "Failed to initialize player");
-      setIsLoading(false);
     }
-  }, [playerName, initialVolume, getAccessToken, transferToDevice]);
+  });
 
   // Initialize player when SDK is loaded and user is authenticated with Premium
   useEffect(() => {
-    if (!sdkLoaded || !isAuthenticated) {
+    if (!settingsLoaded || !sdkLoaded || !isAuthenticated) {
       return;
     }
 
@@ -502,14 +641,16 @@ export function SpotifyPlayerProvider({
       devLog("User does not have Premium, skipping player initialization");
       let cancelled = false;
       queueMicrotask(() => {
-        if (!cancelled) setError("Spotify Premium required for playback");
+        if (!cancelled) {
+          patchRuntime({ error: "Spotify Premium required for playback" });
+        }
       });
       return () => {
         cancelled = true;
       };
     }
 
-    if (!accessToken) {
+    if (!hasAccessToken) {
       devLog("No access token available, waiting...");
       return;
     }
@@ -523,40 +664,35 @@ export function SpotifyPlayerProvider({
       cancelled = true;
       if (playerRef.current) {
         devLog("Disconnecting player...");
-        disposeSpotifyPlayer(playerRef.current);
-        playerRef.current = null;
-        setPlayer(null);
-        setDeviceId(null);
-        setIsReady(false);
-        setIsPlaybackLocal(false);
+        disposeCurrentPlayer();
+        patchRuntime({
+          player: null,
+          deviceId: null,
+          isReady: false,
+          isPlaybackLocal: false,
+        });
         localPlaybackConfirmedAtRef.current = 0;
         hasAutoTransferredRef.current = false;
       }
     };
   }, [
     sdkLoaded,
+    settingsLoaded,
     isAuthenticated,
     isPremium,
-    accessToken,
+    hasAccessToken,
     retryCount,
-    initializePlayer,
+    disposeCurrentPlayer,
+    patchRuntime,
   ]);
 
   // Retry initialization
   const retry = useCallback(() => {
-    if (playerRef.current) {
-      disposeSpotifyPlayer(playerRef.current);
-      playerRef.current = null;
-    }
-    setPlayer(null);
-    setDeviceId(null);
-    setIsReady(false);
-    setIsPlaybackLocal(false);
+    disposeCurrentPlayer();
     localPlaybackConfirmedAtRef.current = 0;
     hasAutoTransferredRef.current = false;
-    setError(null);
-    setRetryCount((c) => c + 1);
-  }, []);
+    dispatch({ type: "retry" });
+  }, [disposeCurrentPlayer]);
 
   // Set up listeners for remote commands (e.g. from Island)
   useEffect(() => {
@@ -612,7 +748,7 @@ export function SpotifyPlayerProvider({
     }, 250); // Update every 250ms for smoother lyrics sync
 
     return () => clearInterval(interval);
-  }, [player, state?.isPlaying]);
+  }, [player, setState, state?.isPlaying]);
 
   // Playback controls
   const playbackPosition = state?.position ?? 0;
@@ -633,7 +769,7 @@ export function SpotifyPlayerProvider({
     const localDevice = devices.find((device) => device.id === deviceId);
     if (localDevice?.is_active) {
       localPlaybackConfirmedAtRef.current = Date.now();
-      setIsPlaybackLocal(true);
+      patchRuntime({ isPlaybackLocal: true });
       return;
     }
 
@@ -647,14 +783,14 @@ export function SpotifyPlayerProvider({
         )
       ) {
         localPlaybackConfirmedAtRef.current = Date.now();
-        setIsPlaybackLocal(true);
+        patchRuntime({ isPlaybackLocal: true });
         return;
       }
     }
 
-    setIsPlaybackLocal(false);
+    patchRuntime({ isPlaybackLocal: false });
     throw new Error("Spotify did not activate this playback device");
-  }, [deviceId, getAvailableDevices, transferToDevice]);
+  }, [deviceId, getAvailableDevices, patchRuntime, transferToDevice]);
 
   const runControl = useCallback(
     async (
@@ -665,7 +801,7 @@ export function SpotifyPlayerProvider({
       if (controlInFlightRef.current) return controlInFlightRef.current;
 
       const request = (async () => {
-        setIsControlling(true);
+        patchRuntime({ isControlling: true });
         try {
           if (options?.ensureLocal !== false) await ensurePlaybackHere();
           await action();
@@ -673,7 +809,7 @@ export function SpotifyPlayerProvider({
           devError(`Failed to ${actionName}:`, actionError);
           throw actionError;
         } finally {
-          setIsControlling(false);
+          patchRuntime({ isControlling: false });
         }
       })();
 
@@ -686,7 +822,7 @@ export function SpotifyPlayerProvider({
         }
       }
     },
-    [ensurePlaybackHere],
+    [ensurePlaybackHere, patchRuntime],
   );
 
   const play = useCallback(
@@ -718,12 +854,12 @@ export function SpotifyPlayerProvider({
           );
           await assertSpotifyResponse(response, "Start playback");
           localPlaybackConfirmedAtRef.current = Date.now();
-          setIsPlaybackLocal(true);
+          patchRuntime({ isPlaybackLocal: true });
         },
         { ensureLocal: false },
       );
     },
-    [deviceId, getAccessToken, runControl],
+    [deviceId, getAccessToken, patchRuntime, runControl],
   );
 
   const pause = useCallback(async () => {
@@ -743,11 +879,18 @@ export function SpotifyPlayerProvider({
 
   const previousTrack = useCallback(async () => {
     if (!player) throw new Error("Playback is not ready");
-    // If position > 3 seconds, restart the current track instead
     await runControl("go to the previous track", () =>
-      playbackPosition > 3000 ? player.seek(0) : player.previousTrack(),
+      settings.playback.previousButtonBehavior === "smart" &&
+      playbackPosition > 3000
+        ? player.seek(0)
+        : player.previousTrack(),
     );
-  }, [player, playbackPosition, runControl]);
+  }, [
+    player,
+    playbackPosition,
+    runControl,
+    settings.playback.previousButtonBehavior,
+  ]);
 
   const seek = useCallback(
     async (positionMs: number) => {
@@ -769,10 +912,20 @@ export function SpotifyPlayerProvider({
           stateRef.current = nextState;
           setState(nextState);
         }
-        saveVolume(nextVolume);
+        if (nextVolume > 0 && settings.playback.rememberVolume) {
+          void updateSettings("playback", { startupVolume: nextVolume }).catch(
+            () => {},
+          );
+        }
       });
     },
-    [player, runControl],
+    [
+      player,
+      runControl,
+      setState,
+      settings.playback.rememberVolume,
+      updateSettings,
+    ],
   );
 
   const transferPlayback = useCallback(async (shouldPlay = false) => {
@@ -793,16 +946,22 @@ export function SpotifyPlayerProvider({
             )
           ) {
             localPlaybackConfirmedAtRef.current = Date.now();
-            setIsPlaybackLocal(true);
+            patchRuntime({ isPlaybackLocal: true });
             return;
           }
         }
-        setIsPlaybackLocal(false);
+        patchRuntime({ isPlaybackLocal: false });
         throw new Error("Spotify did not activate this playback device");
       },
       { ensureLocal: false },
     );
-  }, [deviceId, getAvailableDevices, runControl, transferToDevice]);
+  }, [
+    deviceId,
+    getAvailableDevices,
+    patchRuntime,
+    runControl,
+    transferToDevice,
+  ]);
 
   const toggleShuffle = useCallback(async () => {
     if (!deviceId) throw new Error("No device ID available");
@@ -822,7 +981,7 @@ export function SpotifyPlayerProvider({
         previous ? { ...previous, shuffle: nextShuffle } : null,
       );
     });
-  }, [deviceId, getAccessToken, runControl, shuffleEnabled]);
+  }, [deviceId, getAccessToken, runControl, setState, shuffleEnabled]);
 
   const cycleRepeatMode = useCallback(async () => {
     if (!deviceId) throw new Error("No device ID available");
@@ -849,9 +1008,11 @@ export function SpotifyPlayerProvider({
       }
 
       // Reflect the new mode only after Spotify accepts the request.
-      setState((prev) => prev ? { ...prev, repeatMode: nextMode } : null);
+      setState((previous) =>
+        previous ? { ...previous, repeatMode: nextMode } : null,
+      );
     });
-  }, [deviceId, getAccessToken, currentRepeatMode, runControl]);
+  }, [currentRepeatMode, deviceId, getAccessToken, runControl, setState]);
 
   const value = useMemo<SpotifyPlayerContextValue>(
     () => ({
@@ -895,8 +1056,22 @@ export function SpotifyPlayerProvider({
       toggleShuffle,
       cycleRepeatMode,
       retry,
-    ]
+    ],
   );
+
+  return value;
+}
+
+function spotifyEntityId(uri: string | undefined, entity: string): string {
+  const prefix = `spotify:${entity}:`;
+  return uri?.startsWith(prefix) ? uri.slice(prefix.length) : "";
+}
+
+export function SpotifyPlayerProvider({
+  children,
+  playerName = "Spotify Rework",
+}: SpotifyPlayerProviderProps) {
+  const value = useSpotifyPlayerController(playerName);
 
   return (
     <SpotifyPlayerContext.Provider value={value}>

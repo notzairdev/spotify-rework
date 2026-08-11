@@ -27,6 +27,9 @@ import Link from "next/link";
 import { Slider } from "@/components/ui/slider";
 import { QueuePopover } from "./queue-popover";
 import { DevicePopover } from "./device-popover";
+import { UpNextToast } from "./up-next-toast";
+import { TrackPlaylistContextMenu } from "./track-playlist-context-menu";
+import { TrackContextMenu } from "@/components/context/track-context-menu";
 import { cn } from "@/lib/utils";
 import {
   extractDominantColor,
@@ -136,10 +139,15 @@ export function PlayerBar() {
 
           if (!nextTrack) return;
           toastShownRef.current = currentTrackId;
-          toast("Up Next", {
-            description: `${nextTrack.name} • ${nextTrack.artists.map((artist) => artist.name).join(", ")}`,
-            duration: 5000,
-          });
+          toast.custom(
+            (toastId) => (
+              <UpNextToast
+                track={nextTrack}
+                onDismiss={() => toast.dismiss(toastId)}
+              />
+            ),
+            { duration: 5000 },
+          );
         })
         .catch((error) => {
           console.error("Failed to refresh Up Next:", error);
@@ -318,25 +326,59 @@ export function PlayerBar() {
           {/* Track info - always visible */}
           <div className="w-40 min-w-0">
             {track ? (
-              <div>
-                <p className="text-[13px] font-medium text-foreground truncate">
-                  {track.name}
-                </p>
-                <p className="text-[11px] text-muted-foreground truncate">
-                  {track.artists.join(", ")}
-                </p>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-[10px] font-mono text-muted-foreground/70">
-                    {formatTime(state?.position ?? 0)}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground/40">
-                    /
-                  </span>
-                  <span className="text-[10px] font-mono text-muted-foreground/50">
-                    {formatTime(state?.duration ?? 0)}
-                  </span>
+              <TrackContextMenu
+                trackId={track.id}
+                trackUri={track.uri ?? `spotify:track:${track.id}`}
+                trackName={track.name}
+                artistId={track.artistIds?.[0]}
+                artistName={track.artists[0]}
+                albumId={track.album.id}
+                albumName={track.album.name}
+                spotifyUrl={`https://open.spotify.com/track/${track.id}`}
+              >
+                <div>
+                  {track.album.id ? (
+                    <Link
+                      href={`/app/album?id=${track.album.id}`}
+                      className="block truncate text-[13px] font-medium text-foreground hover:underline"
+                    >
+                      {track.name}
+                    </Link>
+                  ) : (
+                    <p className="truncate text-[13px] font-medium text-foreground">
+                      {track.name}
+                    </p>
+                  )}
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    {track.artists.map((artist, index) => (
+                      <span key={`${track.id}-${track.artistIds?.[index] ?? artist}`}>
+                        {index > 0 && ", "}
+                        {track.artistIds?.[index] ? (
+                          <Link
+                            href={`/app/artist?id=${track.artistIds[index]}`}
+                            className="hover:text-foreground hover:underline"
+                          >
+                            {artist}
+                          </Link>
+                        ) : (
+                          artist
+                        )}
+                      </span>
+                    ))}
+                  </p>
+                  <div className="mt-0.5 flex items-center gap-1.5">
+                    <span className="font-mono text-[10px] text-muted-foreground/70">
+                      {formatTime(state?.position ?? 0)}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground/40">
+                      /
+                    </span>
+                    <span className="font-mono text-[10px] text-muted-foreground/50">
+                      {formatTime(state?.duration ?? 0)}
+                    </span>
+                  </div>
                 </div>
-              </div>
+              </TrackContextMenu>
             ) : (
               <div>
                 <p className="text-[13px] text-muted-foreground">
@@ -359,22 +401,28 @@ export function PlayerBar() {
 
           {/* Like button */}
           {track && (
-            <button
-              onClick={() => void handleLike()}
-              aria-label={isLiked ? "Remove from Liked Songs" : "Save to Liked Songs"}
-              disabled={likeLoading}
-              className={cn(
-                "p-2 rounded-full transition-colors",
-                isLiked
-                  ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground",
-                likeLoading && "opacity-50"
-              )}
+            <TrackPlaylistContextMenu
+              trackUri={track.uri ?? `spotify:track:${track.id}`}
+              trackName={track.name}
             >
-              <Heart
-                className={cn("w-4 h-4", isLiked && "fill-current")}
-              />
-            </button>
+              <button
+                onClick={() => void handleLike()}
+                aria-label={isLiked ? "Remove from Liked Songs" : "Save to Liked Songs"}
+                title="Like · Right-click to add to a playlist"
+                disabled={likeLoading}
+                className={cn(
+                  "p-2 rounded-full transition-colors",
+                  isLiked
+                    ? "text-primary"
+                    : "text-muted-foreground hover:text-foreground",
+                  likeLoading && "opacity-50"
+                )}
+              >
+                <Heart
+                  className={cn("w-4 h-4", isLiked && "fill-current")}
+                />
+              </button>
+            </TrackPlaylistContextMenu>
           )}
 
           {/* Shuffle */}

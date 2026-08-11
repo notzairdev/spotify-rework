@@ -62,6 +62,11 @@ function writeHistory(entries: SearchHistoryEntry[]) {
   }
 }
 
+export function clearStoredSearchHistory() {
+  if (typeof window === "undefined") return;
+  writeHistory([]);
+}
+
 export function useSearchHistory() {
   const snapshot = useSyncExternalStore(
     subscribeToHistory,
@@ -89,7 +94,7 @@ export function useSearchHistory() {
     ));
   }, []);
 
-  const clearHistory = useCallback(() => writeHistory([]), []);
+  const clearHistory = useCallback(() => clearStoredSearchHistory(), []);
 
   return { history, addSearch, removeSearch, clearHistory };
 }

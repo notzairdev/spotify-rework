@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { usePreservedPageState } from "@/lib/page-state";
 import { useSearchHistory } from "@/lib/search-history";
+import { useAppSettings } from "@/lib/settings";
 import {
   useDebouncedSearch,
   useTopArtists,
@@ -54,6 +55,7 @@ export function SearchPage() {
     isSearching,
   } = useDebouncedSearch();
   const { history, addSearch, removeSearch, clearHistory } = useSearchHistory();
+  const { settings } = useAppSettings();
   const { data: topArtistsData } = useTopArtists("medium_term", 8);
 
   const topArtists = topArtistsData?.items ?? [];
@@ -78,14 +80,15 @@ export function SearchPage() {
       normalizedInput !== searchedQuery.toLocaleLowerCase() ||
       isLoading ||
       error ||
-      !hasResults
+      !hasResults ||
+      !settings.privacy.saveSearchHistory
     ) {
       return;
     }
 
     const timeout = window.setTimeout(() => addSearch(searchedQuery), 900);
     return () => window.clearTimeout(timeout);
-  }, [addSearch, error, hasResults, isLoading, query, searchedQuery]);
+  }, [addSearch, error, hasResults, isLoading, query, searchedQuery, settings.privacy.saveSearchHistory]);
 
   const selectHistoryQuery = (historyQuery: string) => {
     setFilter("all");
@@ -183,7 +186,7 @@ export function SearchPage() {
       <main className="relative mt-9">
         {!hasQuery && (
           <SearchLanding
-            history={history}
+            history={settings.privacy.saveSearchHistory ? history : []}
             topArtists={topArtists}
             onSelectQuery={selectHistoryQuery}
             onRemoveQuery={removeSearch}

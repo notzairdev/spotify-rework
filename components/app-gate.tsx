@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { redirect, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { isTauriContext } from "@/lib/env";
 import { Titlebar } from "@/components/tauri/titlebar";
@@ -9,8 +9,9 @@ import { PlayerBar } from "@/components/player";
 import { PageViewport } from "@/components/page-viewport";
 import { LoginCard } from "@/components/auth/login-card";
 import { useSpotifyPlayer } from "@/lib/spotify";
-import { Window } from "@tauri-apps/api/window";
+import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
+import { useAppSettings } from "@/lib/settings";
 
 interface AppGateProps {
   children: ReactNode;
@@ -28,21 +29,27 @@ const HIDE_PLAYER_PATHS = ["/", "/callback", "/app/callback", "/island"];
  * 5. Renders the Titlebar consistently across all pages
  */
 export function AppGate({ children }: AppGateProps) {
-  const router = useRouter();
   const pathname = usePathname();
   const { isLoading, isAuthenticated, session } = useAuth();
   const { state: playerState } = useSpotifyPlayer();
-  const hasRedirectedToHome = useRef(false);
+  const { settings } = useAppSettings();
   const playerStateRef = useRef(playerState);
+  const minimizeBehaviorRef = useRef(settings.windowBehavior.minimizeBehavior);
+
+  useEffect(() => {
+    minimizeBehaviorRef.current = settings.windowBehavior.minimizeBehavior;
+  }, [settings.windowBehavior.minimizeBehavior]);
 
   useEffect(() => {
     let hideTimer: ReturnType<typeof setTimeout> | null = null;
     playerStateRef.current = playerState;
-    // If playback pauses entirely or track is cleared, hide island if we are minimized
-    if ((!playerState?.track || !playerState?.isPlaying) && isTauriContext()) {
+    // Keep paused tracks available in the Island; hide it only without a track.
+    if (!playerState?.track && isTauriContext()) {
       emit("island-visibility", false);
       hideTimer = setTimeout(() => {
-        Window.getByLabel("island").then(island => island?.hide()).catch(console.error);
+        void invoke("set_dynamic_island_visible", { visible: false }).catch(
+          console.error,
+        );
       }, 300);
     }
 
@@ -61,21 +68,21 @@ export function AppGate({ children }: AppGateProps) {
     const setupIslandListener = async () => {
       const dispose = await listen<boolean>("main-window-minimized", async (event) => {
         const isMinimized = event.payload;
-        const islandWindow = await Window.getByLabel("island");
-        if (!islandWindow) return;
-
-        // Only show island when ACTIVE playback is happening (is playing)
-        if (isMinimized && playerStateRef.current?.track && playerStateRef.current?.isPlaying) {
+        // A loaded paused track still needs controls to resume playback.
+        if (
+          isMinimized &&
+          minimizeBehaviorRef.current === "dynamicIsland" &&
+          playerStateRef.current?.track
+        ) {
           // Tell the island to animate IN before showing window completely
-          emit("island-visibility", true);
-          await islandWindow.show();
+          await invoke("set_dynamic_island_visible", { visible: true });
         } else {
           // Tell the island to animate OUT
           emit("island-visibility", false);
           // Wait for animation before hiding completely
           if (hideTimer) clearTimeout(hideTimer);
           hideTimer = setTimeout(async () => {
-            await islandWindow.hide();
+            await invoke("set_dynamic_island_visible", { visible: false });
           }, 300);
         }
       });
@@ -90,28 +97,17 @@ export function AppGate({ children }: AppGateProps) {
     };
   }, []);
 
-  // Only redirect authenticated users from login page to home
   // This is the ONLY navigation we perform — never redirect for unauthenticated users
-  useEffect(() => {
-    if (isLoading || !isTauriContext()) return;
-
-    if (isAuthenticated && session && pathname === "/" && !hasRedirectedToHome.current) {
-      hasRedirectedToHome.current = true;
-      router.replace("/app/home");
-    }
-    // Reset guard when we leave the login page
-    if (pathname !== "/") {
-      hasRedirectedToHome.current = false;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, isAuthenticated, pathname]);
-
   // While loading auth state, show nothing
   if (isLoading) {
     return null;
   }
 
-  // In Tauri context, if not authenticated: render login page directly
+  if (isTauriContext() && isAuthenticated && session && pathname === "/") {
+    redirect("/app/home");
+  }
+
+  // In Tauri context, if not authenticated: render login page directly.
   // NO router.replace() here — that was causing the infinite loop
   if (isTauriContext() && !isAuthenticated && pathname !== "/callback" && pathname !== "/app/callback") {
     return (

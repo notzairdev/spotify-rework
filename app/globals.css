@@ -299,3 +299,37 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+html[data-reduce-motion] *,
+html[data-reduce-motion] *::before,
+html[data-reduce-motion] *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+html[data-reduce-transparency] [class*="backdrop-blur"] {
+  backdrop-filter: none !important;
+}
+
+html[data-reduce-transparency] [class*="bg-card/"] {
+  background-color: var(--card) !important;
+}
+
+@keyframes up-next-toast-progress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+.up-next-toast-progress {
+  animation: up-next-toast-progress 5s linear forwards;
+}
+
+.group:hover .up-next-toast-progress {
+  animation-play-state: paused;
+}

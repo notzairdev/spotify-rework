@@ -1,18 +1,27 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getCurrentWindow, Window, LogicalSize, LogicalPosition, currentMonitor } from "@tauri-apps/api/window";
+import Image from "next/image";
+import {
+  currentMonitor,
+  getCurrentWindow,
+  LogicalSize,
+  PhysicalPosition,
+  Window,
+} from "@tauri-apps/api/window";
 import { listen, emit } from "@tauri-apps/api/event";
-import { Maximize2, SkipBack, SkipForward, Play, Pause } from "lucide-react";
+import { Maximize2, Music2, SkipBack, SkipForward, Play, Pause } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PlaybackState } from "@/lib/spotify/player-provider";
 
 const togglePlay = () => emit("island-play-pause");
 const nextTrack = () => emit("island-next");
 const previousTrack = () => emit("island-prev");
+const ISLAND_WIDTH = 280;
+const ISLAND_HEIGHT = 48;
 
 function formatTime(ms: number) {
-  const totalSeconds = Math.floor(ms / 1000);
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
@@ -93,8 +102,9 @@ export default function IslandPage() {
   }, [isPlaying]);
 
   const duration = state?.duration || 1;
-  const remainingParams = formatTime(duration - progressMs);
-  const currentParams = formatTime(progressMs);
+  const safeProgress = Math.min(duration, Math.max(0, progressMs));
+  const remainingParams = formatTime(duration - safeProgress);
+  const currentParams = formatTime(safeProgress);
 
   // Automatically center the island window at the very top of the monitor
   useEffect(() => {
@@ -103,17 +113,14 @@ export default function IslandPage() {
         const appWindow = getCurrentWindow();
         const monitor = await currentMonitor();
         if (monitor) {
-          const width = 200;
-          const height = 50;
-          
-          await appWindow.setSize(new LogicalSize(width, height));
-          await appWindow.setShadow(false); // Fix transparency on Windows by removing shadow
-          
-          // Center it horizontally, attach to top
-          const x = monitor.position.x + (monitor.size.width / monitor.scaleFactor) / 2 - width / 2;
-          const y = monitor.position.y;
-          
-          await appWindow.setPosition(new LogicalPosition(x, y));
+          await appWindow.setSize(new LogicalSize(ISLAND_WIDTH, ISLAND_HEIGHT));
+          await appWindow.setShadow(false);
+
+          const physicalWidth = ISLAND_WIDTH * monitor.scaleFactor;
+          const x = monitor.position.x + (monitor.size.width - physicalWidth) / 2;
+          await appWindow.setPosition(
+            new PhysicalPosition(Math.round(x), monitor.position.y),
+          );
         }
       } catch (err) {
         console.error(err);
@@ -129,7 +136,7 @@ export default function IslandPage() {
   return (
     <div 
       className={cn(
-        "w-[200px] h-[50px] bg-black backdrop-blur-xl border border-white/10 rounded-b-3xl shadow-2xl flex items-center px-4 overflow-hidden relative group transition-all duration-300 ease-in-out",
+        "h-full w-full bg-black/95 backdrop-blur-xl border-x border-b border-white/10 rounded-b-2xl shadow-2xl flex items-center px-4 overflow-hidden relative group transition-all duration-300 ease-in-out",
         visible ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0"
       )}
     >
@@ -142,12 +149,20 @@ export default function IslandPage() {
       `}} />
       
 
-      <div className="flex-shrink-0">
-        <img 
-          src={albumArt} 
-          alt="Album Art" 
-          className="w-8 h-8 rounded-full object-cover shadow-md"
-        />
+      <div className="relative size-8 shrink-0 overflow-hidden rounded-full shadow-md">
+        {albumArt ? (
+          <Image
+            src={albumArt}
+            alt="Album art"
+            fill
+            sizes="32px"
+            className="object-cover"
+          />
+        ) : (
+          <span className="flex size-full items-center justify-center bg-white/10 text-white/60">
+            <Music2 className="size-4" />
+          </span>
+        )}
       </div>
 
       {/* Default details (Times) visible when not hovered */}
@@ -157,7 +172,7 @@ export default function IslandPage() {
       </div>
 
       {/* Controls - visible on hover, replace the times */}
-      <div className="absolute left-16 right-4 top-0 bottom-0 flex justify-center items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 backdrop-blur-sm">
+      <div className="absolute inset-y-0 left-16 right-4 flex items-center justify-center gap-3 bg-black/50 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100">
         <button onClick={previousTrack} aria-label="Previous track" className="text-white/70 hover:text-white p-1">
           <SkipBack size={14} />
         </button>

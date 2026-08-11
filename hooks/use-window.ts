@@ -1,7 +1,9 @@
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
-async function handleMinimize() {
+async function handleMinimize(showDynamicIsland = false) {
   const appWindow = getCurrentWindow();
+  await invoke("set_dynamic_island_visible", { visible: showDynamicIsland });
   await appWindow?.minimize();
 }
 

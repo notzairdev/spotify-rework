@@ -217,7 +217,7 @@ export default function LyricsPage() {
   // Reset fullscreen on unmount
   useEffect(() => {
     return () => {
-      setFullscreen(false);
+      void setFullscreen(false);
     };
   }, [setFullscreen]);
 

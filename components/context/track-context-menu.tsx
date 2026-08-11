@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import Image from "next/image";
 import {
   BookOpenText,
   Heart,
@@ -32,7 +33,6 @@ import {
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import {
-  getMyPlaylists,
   addTracksToPlaylist,
   addToQueue,
   saveTracks,
@@ -40,6 +40,10 @@ import {
   checkSavedTracks,
   invalidateSpotifyQueryCache,
 } from "@/lib/spotify";
+import {
+  getCachedMyPlaylists,
+  type MyPlaylistPage,
+} from "@/lib/spotify/user-playlists-cache";
 import { useTrackCredits } from "@/lib/music-data";
 import { toast } from "sonner";
 
@@ -55,12 +59,6 @@ interface TrackContextMenuProps {
   spotifyUrl?: string;
 }
 
-// Shared cache for playlists to avoid multiple fetches
-type PlaylistPage = Awaited<ReturnType<typeof getMyPlaylists>>;
-
-let playlistsCache: PlaylistPage | null = null;
-let playlistsFetchPromise: Promise<PlaylistPage> | null = null;
-
 export function TrackContextMenu({
   children,
   trackId,
@@ -72,9 +70,7 @@ export function TrackContextMenu({
   albumName,
   spotifyUrl,
 }: TrackContextMenuProps) {
-  const [playlists, setPlaylists] = useState<PlaylistPage["items"] | null>(
-    playlistsCache?.items ?? null,
-  );
+  const [playlists, setPlaylists] = useState<MyPlaylistPage["items"] | null>(null);
   const [isLiked, setIsLiked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isAddingToQueue, setIsAddingToQueue] = useState(false);
@@ -88,21 +84,9 @@ export function TrackContextMenu({
     if (dataFetchedRef.current) return;
     dataFetchedRef.current = true;
 
-    // Fetch playlists (with shared cache)
-    if (!playlistsCache) {
-      if (!playlistsFetchPromise) {
-        playlistsFetchPromise = getMyPlaylists(50).then(data => {
-          playlistsCache = data;
-          playlistsFetchPromise = null;
-          return data;
-        });
-      }
-      playlistsFetchPromise.then(data => {
-        setPlaylists(data?.items ?? []);
-      });
-    } else {
-      setPlaylists(playlistsCache.items);
-    }
+    void getCachedMyPlaylists()
+      .then((data) => setPlaylists(data.items ?? []))
+      .catch(() => setPlaylists([]));
 
     // Check like status
     checkSavedTracks([trackId]).then(([liked]) => {
@@ -185,11 +169,15 @@ export function TrackContextMenu({
               >
                 <div className="flex items-center gap-2 min-w-0">
                   {playlist.images?.[0]?.url ? (
-                    <img
-                      src={playlist.images?.[0]?.url}
-                      alt=""
-                      className="w-6 h-6 rounded object-cover"
-                    />
+                    <div className="relative size-6 shrink-0 overflow-hidden rounded">
+                      <Image
+                        src={playlist.images[0].url}
+                        alt=""
+                        fill
+                        sizes="24px"
+                        className="object-cover"
+                      />
+                    </div>
                   ) : (
                     <div className="w-6 h-6 rounded bg-muted flex items-center justify-center">
                       <Disc3 className="w-3 h-3 text-muted-foreground" />
@@ -239,7 +227,7 @@ export function TrackContextMenu({
           <ContextMenuItem asChild>
             <Link href={`/app/album?id=${albumId}`}>
               <Disc3 className="mr-2 h-4 w-4" />
-              Go to Album
+              Show Album
             </Link>
           </ContextMenuItem>
         )}

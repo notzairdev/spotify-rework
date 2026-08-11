@@ -1,7 +1,7 @@
 "use client";
 
 import { FC, ReactNode } from 'react';
-import { ThemeProvider } from './theme-provider';
+import { usePathname } from 'next/navigation';
 import { AuthProvider } from '@/lib/auth';
 import { SpotifyPlayerProvider } from '@/lib/spotify';
 import { LyricsProvider } from '@/lib/lrclib';
@@ -10,14 +10,22 @@ import { AppGate } from '@/components/app-gate';
 import { ContextMenuBlocker } from '@/components/context-menu-blocker';
 import { TooltipProvider } from '../ui/tooltip';
 import { UpdateProvider } from '@/lib/tauri/updater';
+import { AppSettingsProvider } from '@/lib/settings';
+import { Toaster } from '@/components/ui/sonner';
 
 interface ProvidersProps {
   children: ReactNode;
 }
 
 export const Providers: FC<ProvidersProps> = ({ children }) => {
+  const pathname = usePathname();
+
+  if (pathname === "/island") {
+    return <>{children}</>;
+  }
+
   return (
-    <ThemeProvider attribute="class" defaultTheme='dark'>
+    <AppSettingsProvider>
       <ContextMenuBlocker />
       <UpdateProvider>
         <AuthProvider>
@@ -28,12 +36,13 @@ export const Providers: FC<ProvidersProps> = ({ children }) => {
                   <AppGate>
                     {children}
                   </AppGate>
+                  <Toaster position="bottom-right" />
                 </TooltipProvider>
               </LyricsProvider>
             </SpotifyPlayerProvider>
           </FullscreenProvider>
         </AuthProvider>
       </UpdateProvider>
-    </ThemeProvider>
+    </AppSettingsProvider>
   );
 }

@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { isTauriContext } from "@/lib/env";
+import { useAppSettings } from "@/lib/settings";
 
 export type UpdateStatus =
   | "idle"
@@ -69,6 +70,7 @@ function errorMessage(error: unknown) {
 }
 
 export function UpdateProvider({ children }: { children: ReactNode }) {
+  const { settings, isLoaded: settingsLoaded } = useAppSettings();
   const supported = useSyncExternalStore(
     subscribeToTauriContext,
     isTauriContext,
@@ -174,15 +176,32 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!supported || automaticCheckStarted) return;
+    if (
+      !settingsLoaded ||
+      !settings.updates.automaticChecks ||
+      !supported ||
+      automaticCheckStarted
+    ) {
+      return;
+    }
     automaticCheckStarted = true;
+    let checkStarted = false;
 
     const timer = window.setTimeout(() => {
+      checkStarted = true;
       if (getCurrentWindow().label === "main") void checkForUpdates(false);
     }, 4_000);
 
-    return () => window.clearTimeout(timer);
-  }, [checkForUpdates, supported]);
+    return () => {
+      window.clearTimeout(timer);
+      if (!checkStarted) automaticCheckStarted = false;
+    };
+  }, [
+    checkForUpdates,
+    settings.updates.automaticChecks,
+    settingsLoaded,
+    supported,
+  ]);
 
   const value = useMemo<UpdaterContextValue>(
     () => ({
