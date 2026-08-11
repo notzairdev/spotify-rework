@@ -38,8 +38,11 @@ export function NowPlayingLyrics() {
     const line = lyricLineRefs.current[currentLineIndex];
     if (!line) return;
 
+    const viewportRect = viewport.getBoundingClientRect();
+    const lineRect = line.getBoundingClientRect();
+    const lineTop = lineRect.top - viewportRect.top + viewport.scrollTop;
     const targetTop =
-      line.offsetTop - (viewport.clientHeight - line.offsetHeight) * 0.42;
+      lineTop - (viewport.clientHeight - lineRect.height) * 0.42;
 
     viewport.scrollTo({
       top: Math.max(0, targetTop),

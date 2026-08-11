@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, type UIEvent } from "react";
+import { useEffect, useRef, useState, type UIEvent } from "react";
 import Image from "next/image";
 import { ExternalLink, Music2, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
 import { AnimatedArtwork } from "@/components/media/animated-artwork";
 import { NowPlayingLyrics } from "@/components/lyrics/now-playing-lyrics";
+import { TrackInformationDialog } from "@/components/shell/track-information-dialog";
 import { useAnimatedArtwork } from "@/lib/animated-artwork";
 import {
   useAudioDbTrackInfo,
@@ -26,6 +27,7 @@ async function playRecommendation(uri: string) {
 
 export function NowPlayingPanel() {
   const { state, isControlling, togglePlay } = useSpotifyPlayer();
+  const [trackInfoOpen, setTrackInfoOpen] = useState(false);
   const artworkLayerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const track = state?.track;
@@ -45,6 +47,10 @@ export function NowPlayingPanel() {
     trackInfo?.genre,
     trackInfo?.mood,
     trackInfo?.style,
+    trackInfo?.theme,
+    trackInfo?.musicVideoDirector,
+    trackInfo?.musicVideoCompany,
+    trackInfo?.musicVideoUrl,
   ].some((value) => Boolean(value?.trim()));
   const progress = state?.duration
     ? Math.min(100, Math.max(0, (state.position / state.duration) * 100))
@@ -85,6 +91,7 @@ export function NowPlayingPanel() {
   };
 
   return (
+    <>
     <aside
       aria-label="Now playing"
       className="relative hidden h-full min-h-0 overflow-hidden border-l border-white/6 bg-card shadow-[0_22px_80px_rgba(0,0,0,0.14)] 2xl:flex 2xl:flex-col"
@@ -208,35 +215,36 @@ export function NowPlayingPanel() {
             )}
 
             {trackInfo && hasTrackInfo && (
-              <section className="rounded-2xl border border-white/8 bg-white/4 p-4">
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { key: "genre", value: trackInfo.genre },
-                    { key: "mood", value: trackInfo.mood },
-                    { key: "style", value: trackInfo.style },
-                  ]
-                    .filter((item): item is { key: string; value: string } => Boolean(item.value))
-                    .slice(0, 3)
-                    .map((item) => (
-                      <span key={item.key} className="rounded-full bg-white/7 px-2.5 py-1 text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
-                        {item.value}
-                      </span>
-                    ))}
-                </div>
-                {trackInfo.description && (
-                  <p className="mt-3 line-clamp-5 leading-relaxed text-muted-foreground">
-                    {trackInfo.description}
-                  </p>
-                )}
-                <a
-                  href={trackInfo.sourceUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-3 flex items-center gap-1 text-[10px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+              <section className="overflow-hidden rounded-2xl border border-white/8 bg-white/4">
+                <button
+                  type="button"
+                  aria-haspopup="dialog"
+                  onClick={() => setTrackInfoOpen(true)}
+                  className="group w-full p-4 text-left transition-colors hover:bg-white/4"
                 >
-                  Track information
-                  <ExternalLink className="size-3" />
-                </a>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { key: "genre", value: trackInfo.genre },
+                      { key: "mood", value: trackInfo.mood },
+                      { key: "style", value: trackInfo.style },
+                    ]
+                      .filter((item): item is { key: string; value: string } => Boolean(item.value))
+                      .slice(0, 3)
+                      .map((item) => (
+                        <span key={item.key} className="rounded-full bg-white/7 px-2.5 py-1 text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+                          {item.value}
+                        </span>
+                      ))}
+                  </div>
+                  {trackInfo.description && (
+                    <p className="mt-3 line-clamp-3 leading-relaxed text-muted-foreground transition-colors group-hover:text-foreground/80">
+                      {trackInfo.description}
+                    </p>
+                  )}
+                  <span className="mt-3 block text-[10px] font-medium text-muted-foreground transition-colors group-hover:text-foreground">
+                    About this track
+                  </span>
+                </button>
               </section>
             )}
 
@@ -281,6 +289,17 @@ export function NowPlayingPanel() {
           </div>
       </div>
     </aside>
+
+    {trackInfo && hasTrackInfo && (
+      <TrackInformationDialog
+        open={trackInfoOpen}
+        onOpenChange={setTrackInfoOpen}
+        trackName={track.name}
+        artists={track.artists}
+        info={trackInfo}
+      />
+    )}
+    </>
   );
 }
 
