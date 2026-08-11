@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import Image from "next/image";
 import {
   Play,
   ListPlus,
@@ -22,12 +23,15 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import {
-  getMyPlaylists,
   startPlayback,
   addTracksToPlaylist,
   addToQueue,
   invalidateSpotifyQueryCache,
 } from "@/lib/spotify";
+import {
+  getCachedMyPlaylists,
+  type MyPlaylistPage,
+} from "@/lib/spotify/user-playlists-cache";
 import { toast } from "sonner";
 
 interface AlbumContextMenuProps {
@@ -41,12 +45,6 @@ interface AlbumContextMenuProps {
   trackUris?: string[];
 }
 
-// Shared cache for playlists
-type PlaylistPage = Awaited<ReturnType<typeof getMyPlaylists>>;
-
-let playlistsCache: PlaylistPage | null = null;
-let playlistsFetchPromise: Promise<PlaylistPage> | null = null;
-
 export function AlbumContextMenu({
   children,
   albumUri,
@@ -55,9 +53,7 @@ export function AlbumContextMenu({
   spotifyUrl,
   trackUris = [],
 }: AlbumContextMenuProps) {
-  const [playlists, setPlaylists] = useState<PlaylistPage["items"] | null>(
-    playlistsCache?.items ?? null,
-  );
+  const [playlists, setPlaylists] = useState<MyPlaylistPage["items"] | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const dataFetchedRef = useRef(false);
 
@@ -66,20 +62,9 @@ export function AlbumContextMenu({
     if (dataFetchedRef.current) return;
     dataFetchedRef.current = true;
 
-    if (!playlistsCache) {
-      if (!playlistsFetchPromise) {
-        playlistsFetchPromise = getMyPlaylists(50).then(data => {
-          playlistsCache = data;
-          playlistsFetchPromise = null;
-          return data;
-        });
-      }
-      playlistsFetchPromise.then(data => {
-        setPlaylists(data?.items ?? []);
-      });
-    } else {
-      setPlaylists(playlistsCache.items);
-    }
+    void getCachedMyPlaylists()
+      .then((data) => setPlaylists(data.items ?? []))
+      .catch(() => setPlaylists([]));
   }, []);
 
   const handlePlay = async () => {
@@ -173,11 +158,15 @@ export function AlbumContextMenu({
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     {playlist.images[0]?.url ? (
-                      <img
-                        src={playlist.images[0].url}
-                        alt=""
-                        className="w-6 h-6 rounded object-cover"
-                      />
+                      <div className="relative size-6 shrink-0 overflow-hidden rounded">
+                        <Image
+                          src={playlist.images[0].url}
+                          alt=""
+                          fill
+                          sizes="24px"
+                          className="object-cover"
+                        />
+                      </div>
                     ) : (
                       <div className="w-6 h-6 rounded bg-muted flex items-center justify-center">
                         <Disc3 className="w-3 h-3 text-muted-foreground" />

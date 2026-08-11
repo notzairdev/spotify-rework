@@ -20,6 +20,8 @@ import { useAuth } from "@/lib/auth";
 import { useFullscreen } from "@/lib/fullscreen";
 import { cn } from "@/lib/utils";
 import { clearPreservedNavigationState } from "@/lib/page-state";
+import { useAppSettings } from "@/lib/settings";
+import { useSpotifyPlayer } from "@/lib/spotify";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,6 +56,8 @@ export function Titlebar() {
   const query = searchParams.toString();
   const currentLocation = query ? `${pathname}?${query}` : pathname;
   const { isFullscreen } = useFullscreen();
+  const { settings } = useAppSettings();
+  const { state: playbackState } = useSpotifyPlayer();
   // Navigation history tracking
   const [navigationHistory, setNavigationHistory] = useState<NavigationHistory>(
     EMPTY_NAVIGATION_HISTORY
@@ -129,6 +133,13 @@ export function Titlebar() {
     router.push("/");
   };
 
+  const handleMinimize = () => {
+    const showDynamicIsland =
+      settings.windowBehavior.minimizeBehavior === "dynamicIsland" &&
+      Boolean(playbackState?.track);
+    void minimize(showDynamicIsland);
+  };
+
   return (
     <header
       className={cn(
@@ -137,11 +148,15 @@ export function Titlebar() {
       )}
     >
       <div
+        role="toolbar"
+        aria-label="Application title bar"
         className={cn(
           "h-12 flex items-center px-4 bg-transparent transition-[height] duration-500",
           isFullscreen && "h-10",
         )}
-        onMouseDown={drag}
+        onMouseDown={(event) => {
+          if (event.button === 0) void drag();
+        }}
         data-tauri-drag-region
       >
         {/* Left: Branding - always visible */}
@@ -277,7 +292,7 @@ export function Titlebar() {
               <>
                 <button
                   className="w-7 h-7 flex items-center justify-center text-dim hover:text-foreground transition-colors"
-                  onClick={minimize}
+                  onClick={handleMinimize}
                   aria-label="Minimize window"
                   onMouseDown={(e) => e.stopPropagation()}
                 >

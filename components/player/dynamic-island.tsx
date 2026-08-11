@@ -267,7 +267,7 @@ export function DynamicIsland() {
             )}
           >
             <button
-              onClick={toggleFullscreen}
+              onClick={() => void toggleFullscreen()}
               aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
               className="p-1.5 text-white/60 hover:text-white"
             >
