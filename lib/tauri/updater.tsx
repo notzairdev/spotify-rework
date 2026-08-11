@@ -123,7 +123,30 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
           body: available.body,
         });
         setStatus("available");
-        setDialogOpen(true);
+        if (manual) {
+          setDialogOpen(true);
+        } else {
+          setStatus("downloading");
+          setProgress(0);
+          let downloaded = 0;
+          let total: number | undefined;
+
+          await available.downloadAndInstall((event) => {
+            if (event.event === "Started") {
+              total = event.data.contentLength;
+              setProgress(total ? 0 : null);
+            } else if (event.event === "Progress") {
+              downloaded += event.data.chunkLength;
+              setProgress(total ? Math.min(100, (downloaded / total) * 100) : null);
+            } else {
+              setProgress(100);
+              setStatus("installing");
+            }
+          });
+
+          setStatus("installing");
+          await relaunch();
+        }
       } catch (caught) {
         const message = errorMessage(caught);
         setError(message);

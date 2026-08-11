@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import {
   currentMonitor,
@@ -11,6 +11,7 @@ import {
 } from "@tauri-apps/api/window";
 import { listen, emit } from "@tauri-apps/api/event";
 import { Maximize2, Music2, SkipBack, SkipForward, Play, Pause } from "lucide-react";
+import { isTauriContext } from "@/lib/env";
 import { cn } from "@/lib/utils";
 import type { PlaybackState } from "@/lib/spotify/player-provider";
 
@@ -19,6 +20,36 @@ const nextTrack = () => emit("island-next");
 const previousTrack = () => emit("island-prev");
 const ISLAND_WIDTH = 280;
 const ISLAND_HEIGHT = 48;
+const ISLAND_STATE_KEY = "spotify-rework-island-state:v1";
+
+function subscribeToCachedState(onStoreChange: () => void) {
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key === ISLAND_STATE_KEY) onStoreChange();
+  };
+  window.addEventListener("storage", handleStorage);
+  return () => window.removeEventListener("storage", handleStorage);
+}
+
+function getCachedStateSnapshot(): string | null {
+  try {
+    return localStorage.getItem(ISLAND_STATE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function getServerStateSnapshot(): null {
+  return null;
+}
+
+function parseCachedState(value: string | null): PlaybackState | null {
+  if (!value) return null;
+  try {
+    return JSON.parse(value) as PlaybackState;
+  } catch {
+    return null;
+  }
+}
 
 function formatTime(ms: number) {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -41,20 +72,24 @@ async function restoreMainWindow() {
 }
 
 export default function IslandPage() {
-  const [state, setState] = useState<PlaybackState | null>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cached = localStorage.getItem("spotify-rework-island-state:v1");
-        if (cached) return JSON.parse(cached);
-      } catch {}
-    }
-    return null;
-  });
+  const cachedStateSnapshot = useSyncExternalStore(
+    subscribeToCachedState,
+    getCachedStateSnapshot,
+    getServerStateSnapshot,
+  );
+  const cachedState = useMemo(
+    () => parseCachedState(cachedStateSnapshot),
+    [cachedStateSnapshot],
+  );
+  const [liveState, setLiveState] = useState<PlaybackState | null>(null);
   const [visible, setVisible] = useState(false);
   const [progressMs, setProgressMs] = useState<number>(0);
+  const state = liveState ?? cachedState;
 
   // Sync state from the main window using Tauri events
   useEffect(() => {
+    if (!isTauriContext()) return;
+
     const unlistens: (() => void)[] = [];
     let disposed = false;
 
@@ -62,7 +97,7 @@ export default function IslandPage() {
       try {
         const listeners = await Promise.all([
           listen<PlaybackState>("spotify-player-state", (event) => {
-            setState(event.payload);
+            setLiveState(event.payload);
             if (event.payload?.position !== undefined) {
               setProgressMs(event.payload.position);
             }
@@ -108,6 +143,8 @@ export default function IslandPage() {
 
   // Automatically center the island window at the very top of the monitor
   useEffect(() => {
+    if (!isTauriContext()) return;
+
     const setupIsland = async () => {
       try {
         const appWindow = getCurrentWindow();

@@ -67,7 +67,7 @@
         "https://github.com/notzairdev/spotify-rework-dist/releases/latest/download/latest.json"
       ],
       "windows": {
-        "installMode": "passive"
+        "installMode": "quiet"
       }
     }
   }

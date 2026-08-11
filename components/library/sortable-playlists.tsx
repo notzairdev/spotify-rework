@@ -12,6 +12,8 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
+  type DragStartEvent,
+  type UniqueIdentifier,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -50,6 +52,7 @@ function saveOrder(order: string[]) {
 
 export function SortablePlaylists({ playlists, viewMode, onPlay }: SortablePlaylistsProps) {
   const [playlistOrder, setPlaylistOrder] = useState<string[]>(getStoredOrder);
+  const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -80,7 +83,12 @@ export function SortablePlaylists({ playlists, viewMode, onPlay }: SortablePlayl
     });
   }, [playlists, playlistOrder]);
 
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id);
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
+    setActiveId(null);
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
@@ -100,6 +108,8 @@ export function SortablePlaylists({ playlists, viewMode, onPlay }: SortablePlayl
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragCancel={() => setActiveId(null)}
       onDragEnd={handleDragEnd}
     >
       <SortableContext items={orderedPlaylists.map((p) => p.id)} strategy={strategy}>
@@ -110,6 +120,7 @@ export function SortablePlaylists({ playlists, viewMode, onPlay }: SortablePlayl
                 key={playlist.id}
                 playlist={playlist}
                 onPlay={onPlay}
+                dragActive={activeId !== null}
               />
             ))}
           </div>
@@ -119,6 +130,7 @@ export function SortablePlaylists({ playlists, viewMode, onPlay }: SortablePlayl
               <SortablePlaylistListItem
                 key={playlist.id}
                 playlist={playlist}
+                dragActive={activeId !== null}
               />
             ))}
           </div>
@@ -131,9 +143,10 @@ export function SortablePlaylists({ playlists, viewMode, onPlay }: SortablePlayl
 interface SortablePlaylistItemProps {
   playlist: SpotifyPlaylist;
   onPlay?: (e: React.MouseEvent, uri: string) => void;
+  dragActive: boolean;
 }
 
-function SortablePlaylistGridItem({ playlist, onPlay }: SortablePlaylistItemProps) {
+function SortablePlaylistGridItem({ playlist, onPlay, dragActive }: SortablePlaylistItemProps) {
   const {
     attributes,
     listeners,
@@ -153,7 +166,8 @@ function SortablePlaylistGridItem({ playlist, onPlay }: SortablePlaylistItemProp
       ref={setNodeRef}
       style={style}
       className={cn(
-        "group relative min-w-0 rounded-3xl border border-transparent p-2 transition-colors hover:border-white/8 hover:bg-white/4",
+        "group relative min-w-0 rounded-3xl border border-transparent p-2 transition-[background-color,border-color,box-shadow,opacity,filter] hover:border-white/8 hover:bg-white/4",
+        dragActive && !isDragging && "opacity-25 saturate-50",
         isDragging && "z-50 border-white/10 bg-card opacity-90 shadow-2xl"
       )}
     >
@@ -200,7 +214,7 @@ function SortablePlaylistGridItem({ playlist, onPlay }: SortablePlaylistItemProp
   );
 }
 
-function SortablePlaylistListItem({ playlist }: { playlist: SpotifyPlaylist }) {
+function SortablePlaylistListItem({ playlist, dragActive }: Pick<SortablePlaylistItemProps, "playlist" | "dragActive">) {
   const {
     attributes,
     listeners,
@@ -220,7 +234,8 @@ function SortablePlaylistListItem({ playlist }: { playlist: SpotifyPlaylist }) {
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex items-center gap-3 rounded-2xl p-2.5 transition-colors hover:bg-white/5",
+        "flex items-center gap-3 rounded-2xl p-2.5 transition-[background-color,box-shadow,opacity,filter] hover:bg-white/5",
+        dragActive && !isDragging && "opacity-25 saturate-50",
         isDragging && "z-50 bg-muted opacity-90 shadow-xl"
       )}
     >

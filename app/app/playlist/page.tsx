@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -34,11 +34,44 @@ import {
   checkUserFollowsPlaylist,
 } from "@/lib/spotify/api";
 import { Spinner } from "@/components/ui/spinner";
-import { SortablePlaylistTracks } from "@/components/library/sortable-playlist-tracks";
+import { PlaylistTrackTable } from "@/components/library/playlist-track-table";
+import {
+  getPlaylistTrackUris,
+  type PlaylistSortDirection,
+  type PlaylistSortKey,
+} from "@/lib/spotify/playlist-sort";
 import { extractDominantColor, hslToString, type HSL } from "@/lib/utils/color-extractor";
 import { cn } from "@/lib/utils";
 
+async function playTrackUris(uris: string[]): Promise<void> {
+  if (uris.length === 0) return;
+  try {
+    await startPlayback({ uris });
+  } catch (error) {
+    console.error("Failed to play sorted playlist:", error);
+    toast.error("Could not start playback", {
+      description: "Spotify did not accept the selected track order.",
+    });
+  }
+}
+
 export default function PlaylistPage() {
+  return (
+    <Suspense fallback={<PlaylistPageFallback />}>
+      <PlaylistPageContent />
+    </Suspense>
+  );
+}
+
+function PlaylistPageFallback() {
+  return (
+    <div className="flex h-full items-center justify-center">
+      <Spinner className="size-8" />
+    </div>
+  );
+}
+
+function PlaylistPageContent() {
   const id = useSearchParams().get("id") ?? "";
   const router = useRouter();
 
@@ -50,6 +83,12 @@ export default function PlaylistPage() {
   const [isFollowing, setIsFollowing] = usePreservedPageState("is-following", false);
   const [followLoading, setFollowLoading] = useState(false);
   const [followChecked, setFollowChecked] = usePreservedPageState("follow-checked", false);
+  const [sortKey, setSortKey] = usePreservedPageState<PlaylistSortKey>(
+    "playlist-sort-key",
+    "custom",
+  );
+  const [sortDirection, setSortDirection] =
+    usePreservedPageState<PlaylistSortDirection>("playlist-sort-direction", "asc");
 
   // Extract dominant color from cover image
   useEffect(() => {
@@ -91,21 +130,15 @@ export default function PlaylistPage() {
   const handlePlay = async () => {
     if (!playlist) return;
     try {
-      await startPlayback({ contextUri: playlist.uri });
+      if (sortKey === "custom") {
+        await startPlayback({ contextUri: playlist.uri });
+      } else {
+        const uris = getPlaylistTrackUris(tracks, sortKey, sortDirection);
+        if (uris.length === 0) return;
+        await startPlayback({ uris });
+      }
     } catch (e) {
       console.error("Failed to play playlist:", e);
-    }
-  };
-
-  const handlePlayTrack = async (offset: number) => {
-    if (!playlist) return;
-    try {
-      await startPlayback({
-        contextUri: playlist.uri,
-        offset: { position: offset },
-      });
-    } catch (e) {
-      console.error("Failed to play track:", e);
     }
   };
 
@@ -316,13 +349,19 @@ export default function PlaylistPage() {
           <Spinner className="size-6" />
         </div>
       ) : (
-        <SortablePlaylistTracks
+        <PlaylistTrackTable
           key={playlist.id}
           items={tracks}
           playlistId={playlist.id}
           snapshotId={playlist.snapshot_id}
           canReorder={canReorder}
-          onPlayTrack={handlePlayTrack}
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSortChange={(key, direction) => {
+            setSortKey(key);
+            setSortDirection(direction);
+          }}
+          onPlayTracks={playTrackUris}
         />
       )}
     </div>
