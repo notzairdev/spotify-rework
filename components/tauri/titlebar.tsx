@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import {
   Minus,
+  Square,
   X,
   ChevronDown,
   ChevronLeft,
@@ -67,6 +68,7 @@ export function Titlebar() {
   const { user, logout } = useAuth();
   const {
     handleMinimize: minimize,
+    handleMaximize: maximize,
     handleClose: close,
     startDragging: drag,
   } = useWindow();
@@ -297,6 +299,14 @@ export function Titlebar() {
                   onMouseDown={(e) => e.stopPropagation()}
                 >
                   <Minus className="w-3 h-3" />
+                </button>
+                <button
+                  className="w-7 h-7 flex items-center justify-center text-dim hover:text-foreground transition-colors"
+                  onClick={() => void maximize()}
+                  aria-label="Maximize or restore window"
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <Square className="size-2.5" />
                 </button>
                 <button
                   className="w-7 h-7 flex items-center justify-center text-dim hover:text-destructive transition-colors"

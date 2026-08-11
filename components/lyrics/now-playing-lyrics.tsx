@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowUpRight, Mic2 } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { keySyncedLyrics, useLyricsContext } from "@/lib/lrclib";
 import { useSpotifyPlayer } from "@/lib/spotify";
 import { cn } from "@/lib/utils";
@@ -16,14 +17,35 @@ export function NowPlayingLyrics() {
     hasLyrics,
   } = useLyricsContext();
 
-  const activeLyricIndex = Math.max(0, currentLineIndex);
-  const lyricOffset = 68 - activeLyricIndex * 44;
   const keyedLyrics = keySyncedLyrics(lyrics);
+  const lyricsViewportRef = useRef<HTMLDivElement>(null);
+  const lyricLineRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const plainLines = plainLyrics
     ?.split("\n")
     .map((line) => line.trim())
     .filter(Boolean)
     .slice(0, 5) ?? [];
+
+  useEffect(() => {
+    const viewport = lyricsViewportRef.current;
+    if (!viewport) return;
+
+    if (currentLineIndex < 0) {
+      viewport.scrollTo({ top: 0, behavior: "auto" });
+      return;
+    }
+
+    const line = lyricLineRefs.current[currentLineIndex];
+    if (!line) return;
+
+    const targetTop =
+      line.offsetTop - (viewport.clientHeight - line.offsetHeight) * 0.42;
+
+    viewport.scrollTo({
+      top: Math.max(0, targetTop),
+      behavior: "smooth",
+    });
+  }, [currentLineIndex, keyedLyrics.length]);
 
   if (!isLoading && !hasLyrics) return null;
 
@@ -50,20 +72,20 @@ export function NowPlayingLyrics() {
           <div className="h-5 w-11/12 animate-pulse rounded bg-white/5" />
         </div>
       ) : lyrics.length > 0 ? (
-        <div className="mt-5 h-44 overflow-hidden">
-          <div
-            className="flex flex-col gap-1 transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
-            style={{ transform: `translate3d(0, ${lyricOffset}px, 0)` }}
-          >
+        <div ref={lyricsViewportRef} className="mt-4 h-40 overflow-hidden">
+          <div className="flex flex-col gap-0.5 py-10">
             {keyedLyrics.map(({ key, line }, index) => {
               const isCurrent = index === currentLineIndex;
               return (
                 <button
                   key={key}
                   type="button"
+                  ref={(element) => {
+                    lyricLineRefs.current[index] = element;
+                  }}
                   onClick={() => void seek(line.time * 1000)}
                   className={cn(
-                    "flex h-10 w-full shrink-0 items-center rounded-lg px-1 text-left text-[15px] font-semibold leading-snug transition-[color,background-color,opacity] duration-500 hover:bg-white/5 hover:text-foreground",
+                    "block w-full rounded-lg px-1 py-1.5 text-left text-[15px] font-semibold leading-[1.28] transition-[color,background-color,opacity] duration-500 hover:bg-white/5 hover:text-foreground",
                     isCurrent
                       ? "text-foreground"
                       : index < currentLineIndex

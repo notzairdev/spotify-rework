@@ -377,12 +377,12 @@ function PrivacySettingsSection() {
       />
       <SettingAction
         icon={<Database className="size-4" />}
-        title="Clear API cache"
-        description="Force fresh Spotify data the next time each page opens."
-        actionLabel="Clear cache"
+        title="Refresh stored content"
+        description="Discard temporary Spotify data and load it again as you browse."
+        actionLabel="Refresh"
         onClick={() => {
           clearSpotifyQueryCache();
-          toast.success("API cache cleared");
+          toast.success("Stored content cleared");
         }}
       />
     </SettingsSection>
@@ -643,8 +643,8 @@ function UpdatesSection() {
         )}
       </div>
       <SettingRow
-        title="Check automatically"
-        description="Look for signed desktop releases shortly after startup."
+        title="Automatic updates"
+        description="Keep Spotify Rework up to date in the background."
         control={(
           <Switch
             checked={settings.updates.automaticChecks}
@@ -663,18 +663,18 @@ function getUpdateMessage(updater: ReturnType<typeof useUpdater>): string {
   if (updater.error) return updater.error;
   switch (updater.status) {
     case "up-to-date":
-      return "You have the latest signed release.";
+      return "Spotify Rework is up to date.";
     case "available":
       return `Version ${updater.update?.version} is ready to install.`;
     case "downloading":
-      return "Downloading the signed package from GitHub Releases.";
+      return "Downloading the update.";
     case "installing":
-      return "Tauri is verifying and installing the update.";
+      return "Installing the update. The app will restart when it is ready.";
     case "error":
       return "The update service could not be reached.";
     default:
       return updater.isSupported
-        ? "Signed releases are checked automatically when the app starts."
+        ? "Updates are checked in the background."
         : "Open this page in the desktop app to manage updates.";
   }
 }

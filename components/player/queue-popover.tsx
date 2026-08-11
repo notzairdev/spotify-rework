@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
-import { AudioLines, ListMusic, Music, Repeat1 } from "lucide-react";
+import { AudioLines, ListMusic, Music, Play, Repeat1 } from "lucide-react";
+import { toast } from "sonner";
 import {
   Popover,
   PopoverContent,
@@ -22,7 +23,8 @@ interface QueuePopoverProps {
 export function QueuePopover({ className, triggerClassName, children }: QueuePopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [hasOpened, setHasOpened] = useState(false);
-  const { state } = useSpotifyPlayer();
+  const [playingEntryKey, setPlayingEntryKey] = useState<string | null>(null);
+  const { state, play } = useSpotifyPlayer();
   const { data: queue, isLoading, refetch } = useQueue({ enabled: hasOpened });
 
   const isRepeatingTrack = state?.repeatMode === "track";
@@ -37,6 +39,7 @@ export function QueuePopover({ className, triggerClassName, children }: QueuePop
       state?.repeatMode ?? "off"
     );
   }, [currentTrackId, queue?.queue, state?.repeatMode]);
+  const queueEntries = useMemo(() => createQueueEntries(visibleQueue), [visibleQueue]);
 
   useEffect(() => {
     if (previousPlaybackSignatureRef.current === playbackSignature) return;
@@ -61,6 +64,24 @@ export function QueuePopover({ className, triggerClassName, children }: QueuePop
 
   const upcomingLabel = isRepeatingTrack ? "After repeat is turned off" : "Next in queue";
   const hasPlaybackData = !!queue?.currently_playing || visibleQueue.length > 0;
+
+  const handlePlayFromQueue = async (index: number, entryKey: string) => {
+    const uris = visibleQueue.slice(index).map((track) => track.uri);
+    if (uris.length === 0 || playingEntryKey) return;
+
+    setPlayingEntryKey(entryKey);
+    try {
+      await play(uris);
+      setIsOpen(false);
+    } catch (error) {
+      toast.error("Could not play this queue item", {
+        description:
+          error instanceof Error ? error.message : "Spotify could not start playback.",
+      });
+    } finally {
+      setPlayingEntryKey(null);
+    }
+  };
 
   return (
     <Popover open={isOpen} onOpenChange={handleOpenChange}>
@@ -187,13 +208,23 @@ export function QueuePopover({ className, triggerClassName, children }: QueuePop
 
                 {visibleQueue.length > 0 ? (
                   <div className="space-y-0.5">
-                    {visibleQueue.map((track, index) => (
-                      <div
-                        key={`${track.id}-${index}`}
-                        className="group flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-muted/70"
+                    {queueEntries.map(({ key, track }, index) => (
+                      <button
+                        type="button"
+                        key={key}
+                        onClick={() => void handlePlayFromQueue(index, key)}
+                        disabled={playingEntryKey !== null}
+                        className="group flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-muted/70 disabled:cursor-wait"
                       >
-                        <span className="w-4 shrink-0 text-center text-[10px] tabular-nums text-muted-foreground/60">
-                          {index + 1}
+                        <span className="flex w-4 shrink-0 items-center justify-center text-[10px] tabular-nums text-muted-foreground/60">
+                          {playingEntryKey === key ? (
+                            <Spinner className="size-3" />
+                          ) : (
+                            <>
+                              <span className="group-hover:hidden">{index + 1}</span>
+                              <Play className="hidden size-3 fill-current group-hover:block" />
+                            </>
+                          )}
                         </span>
                         {track.album.images[0]?.url ? (
                           <Image
@@ -219,7 +250,7 @@ export function QueuePopover({ className, triggerClassName, children }: QueuePop
                         <span className="hidden text-[10px] text-muted-foreground sm:block">
                           {formatDuration(track.duration_ms)}
                         </span>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 ) : (
@@ -241,6 +272,16 @@ export function QueuePopover({ className, triggerClassName, children }: QueuePop
       </PopoverContent>
     </Popover>
   );
+}
+
+function createQueueEntries(tracks: ReturnType<typeof normalizePlaybackQueue>) {
+  const occurrences = new Map<string, number>();
+
+  return tracks.map((track) => {
+    const occurrence = occurrences.get(track.uri) ?? 0;
+    occurrences.set(track.uri, occurrence + 1);
+    return { key: `${track.uri}:${occurrence}`, track };
+  });
 }
 
 function formatDuration(ms: number): string {

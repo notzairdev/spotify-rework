@@ -246,7 +246,7 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
               <div>
                 {status === "available" && (
                   <>
-                    <p>Hay una nueva versión disponible. Se verificará su firma antes de instalarla.</p>
+                    <p>Hay una nueva versión disponible para instalar.</p>
                     {update?.body && (
                       <p className="mt-3 max-h-40 overflow-y-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-left">
                         {update.body}

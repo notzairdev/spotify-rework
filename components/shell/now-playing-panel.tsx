@@ -138,7 +138,7 @@ export function NowPlayingPanel() {
 
           <div className="relative z-10 -mt-10 space-y-4 px-4">
             <div className="px-1">
-              <div className="flex items-start gap-3 pointer-events-none">
+              <div className="flex items-start gap-3 pr-14 pointer-events-none">
                 <div className="min-w-0 flex-1">
                   <h2 className="line-clamp-2 text-xl font-semibold leading-tight tracking-tight">{track.name}</h2>
                   <p className="mt-1.5 truncate text-sm text-muted-foreground">{track.artists.join(", ")}</p>

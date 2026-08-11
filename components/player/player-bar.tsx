@@ -30,6 +30,7 @@ import { DevicePopover } from "./device-popover";
 import { UpNextToast } from "./up-next-toast";
 import { TrackPlaylistContextMenu } from "./track-playlist-context-menu";
 import { TrackContextMenu } from "@/components/context/track-context-menu";
+import { SleepTimerPopover } from "./sleep-timer-popover";
 import { cn } from "@/lib/utils";
 import {
   extractDominantColor,
@@ -408,7 +409,7 @@ export function PlayerBar() {
               <button
                 onClick={() => void handleLike()}
                 aria-label={isLiked ? "Remove from Liked Songs" : "Save to Liked Songs"}
-                title="Like · Right-click to add to a playlist"
+                title={isLiked ? "Remove from Liked Songs" : "Save to Liked Songs"}
                 disabled={likeLoading}
                 className={cn(
                   "p-2 rounded-full transition-colors",
@@ -542,6 +543,9 @@ export function PlayerBar() {
 
             {/* Queue */}
             <QueuePopover triggerClassName="p-2 rounded-full text-muted-foreground hover:text-foreground" />
+
+            {/* Sleep timer */}
+            <SleepTimerPopover />
 
             {/* Devices */}
             <DevicePopover triggerClassName="p-2 rounded-full text-muted-foreground hover:text-foreground" />

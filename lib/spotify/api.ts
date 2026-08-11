@@ -97,7 +97,12 @@ export interface SpotifyPlaylist {
   };
   public: boolean;
   collaborative: boolean;
+  snapshot_id?: string;
   tracks: {
+    total: number;
+    href: string;
+  };
+  items?: {
     total: number;
     href: string;
   };
@@ -108,11 +113,23 @@ export interface SpotifyPlaylist {
 }
 
 export interface SpotifyPlaylistTrack {
-  added_at: string;
+  added_at: string | null;
   added_by: {
     id: string;
   };
-  track: SpotifyTrack;
+  track: SpotifyTrack | null;
+  is_local?: boolean;
+}
+
+type SpotifyPlaylistContents = SpotifyPlaylist["tracks"];
+type SpotifyPlaylistWire = Omit<SpotifyPlaylist, "tracks" | "items"> & {
+  tracks?: SpotifyPlaylistContents;
+  items?: SpotifyPlaylistContents;
+};
+
+function normalizePlaylist(playlist: SpotifyPlaylistWire): SpotifyPlaylist {
+  const contents = playlist.items ?? playlist.tracks ?? { total: 0, href: "" };
+  return { ...playlist, tracks: contents, items: contents };
 }
 
 export interface SpotifyDevice {
@@ -343,9 +360,12 @@ export async function getMyPlaylists(
     limit: limit.toString(),
     offset: offset.toString(),
   });
-  return spotifyFetch<SpotifyPaginatedResponse<SpotifyPlaylist>>(
+  const response = await spotifyFetch<
+    SpotifyPaginatedResponse<SpotifyPlaylistWire>
+  >(
     `/me/playlists?${params}`
   );
+  return { ...response, items: response.items.map(normalizePlaylist) };
 }
 
 /**
@@ -371,9 +391,10 @@ export async function getAllMyPlaylists(): Promise<SpotifyPlaylist[]> {
  * Get a playlist by ID
  */
 export async function getPlaylist(playlistId: string): Promise<SpotifyPlaylist> {
-  return spotifyFetch<SpotifyPlaylist>(
+  const response = await spotifyFetch<SpotifyPlaylistWire>(
     `/playlists/${encodeURIComponent(playlistId)}`
   );
+  return normalizePlaylist(response);
 }
 
 /**
@@ -381,16 +402,56 @@ export async function getPlaylist(playlistId: string): Promise<SpotifyPlaylist> 
  */
 export async function getPlaylistTracks(
   playlistId: string,
-  limit: number = 100,
+  limit: number = 50,
   offset: number = 0
 ): Promise<SpotifyPaginatedResponse<SpotifyPlaylistTrack>> {
   const params = new URLSearchParams({
     limit: limit.toString(),
     offset: offset.toString(),
   });
-  return spotifyFetch<SpotifyPaginatedResponse<SpotifyPlaylistTrack>>(
-    `/playlists/${encodeURIComponent(playlistId)}/tracks?${params}`
+  const response = await spotifyFetch<
+    SpotifyPaginatedResponse<
+      Omit<SpotifyPlaylistTrack, "track"> & {
+        item?: SpotifyTrack | null;
+        track?: SpotifyTrack | null;
+      }
+    >
+  >(
+    `/playlists/${encodeURIComponent(playlistId)}/items?${params}`
   );
+
+  return {
+    ...response,
+    items: response.items.map((entry) => ({
+      ...entry,
+      track: entry.item ?? entry.track ?? null,
+    })),
+  };
+}
+
+/** Get every item in an editable playlist using Spotify's 50-item pages. */
+export async function getAllPlaylistTracks(
+  playlistId: string,
+): Promise<SpotifyPaginatedResponse<SpotifyPlaylistTrack>> {
+  const limit = 50;
+  const items: SpotifyPlaylistTrack[] = [];
+  let offset = 0;
+  let latestPage: SpotifyPaginatedResponse<SpotifyPlaylistTrack> | null = null;
+
+  do {
+    latestPage = await getPlaylistTracks(playlistId, limit, offset);
+    items.push(...latestPage.items);
+    offset += latestPage.items.length;
+  } while (latestPage.next && latestPage.items.length > 0);
+
+  return {
+    items,
+    total: latestPage?.total ?? items.length,
+    limit: items.length,
+    offset: 0,
+    next: null,
+    previous: null,
+  };
 }
 
 /**
@@ -404,8 +465,7 @@ export async function createPlaylist(
     collaborative?: boolean;
   }
 ): Promise<SpotifyPlaylist> {
-  const user = await getCurrentUser();
-  return spotifyFetch<SpotifyPlaylist>(`/users/${user.id}/playlists`, {
+  const response = await spotifyFetch<SpotifyPlaylistWire>(`/me/playlists`, {
     method: "POST",
     body: JSON.stringify({
       name,
@@ -414,6 +474,7 @@ export async function createPlaylist(
       collaborative: options?.collaborative ?? false,
     }),
   });
+  return normalizePlaylist(response);
 }
 
 /**
@@ -425,7 +486,7 @@ export async function addTracksToPlaylist(
   position?: number
 ): Promise<{ snapshot_id: string }> {
   return spotifyFetch<{ snapshot_id: string }>(
-    `/playlists/${encodeURIComponent(playlistId)}/tracks`,
+    `/playlists/${encodeURIComponent(playlistId)}/items`,
     {
       method: "POST",
       body: JSON.stringify({
@@ -444,13 +505,34 @@ export async function removeTracksFromPlaylist(
   uris: string[]
 ): Promise<{ snapshot_id: string }> {
   return spotifyFetch<{ snapshot_id: string }>(
-    `/playlists/${encodeURIComponent(playlistId)}/tracks`,
+    `/playlists/${encodeURIComponent(playlistId)}/items`,
     {
       method: "DELETE",
       body: JSON.stringify({
-        tracks: uris.map((uri) => ({ uri })),
+        items: uris.map((uri) => ({ uri })),
       }),
     }
+  );
+}
+
+/** Reorder one contiguous range in a playlist owned by or shared with the user. */
+export async function reorderPlaylistItems(
+  playlistId: string,
+  rangeStart: number,
+  insertBefore: number,
+  snapshotId?: string,
+): Promise<{ snapshot_id: string }> {
+  return spotifyFetch<{ snapshot_id: string }>(
+    `/playlists/${encodeURIComponent(playlistId)}/items`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        range_start: rangeStart,
+        insert_before: insertBefore,
+        range_length: 1,
+        ...(snapshotId ? { snapshot_id: snapshotId } : {}),
+      }),
+    },
   );
 }
 

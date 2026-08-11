@@ -12,6 +12,7 @@ import { TooltipProvider } from '../ui/tooltip';
 import { UpdateProvider } from '@/lib/tauri/updater';
 import { AppSettingsProvider } from '@/lib/settings';
 import { Toaster } from '@/components/ui/sonner';
+import { SleepTimerProvider } from '@/lib/sleep-timer';
 
 interface ProvidersProps {
   children: ReactNode;
@@ -31,14 +32,16 @@ export const Providers: FC<ProvidersProps> = ({ children }) => {
         <AuthProvider>
           <FullscreenProvider>
             <SpotifyPlayerProvider>
-              <LyricsProvider>
-                <TooltipProvider>
-                  <AppGate>
-                    {children}
-                  </AppGate>
-                  <Toaster position="bottom-right" />
-                </TooltipProvider>
-              </LyricsProvider>
+              <SleepTimerProvider>
+                <LyricsProvider>
+                  <TooltipProvider>
+                    <AppGate>
+                      {children}
+                    </AppGate>
+                    <Toaster position="bottom-right" />
+                  </TooltipProvider>
+                </LyricsProvider>
+              </SleepTimerProvider>
             </SpotifyPlayerProvider>
           </FullscreenProvider>
         </AuthProvider>

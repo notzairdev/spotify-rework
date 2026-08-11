@@ -271,10 +271,10 @@ export function usePlaylist(playlistId: string | null) {
 /**
  * Get tracks from a playlist
  */
-export function usePlaylistTracks(playlistId: string | null, limit: number = 100) {
+export function usePlaylistTracks(playlistId: string | null) {
   return useSpotifyQuery(
-    playlistId ? `playlist:${playlistId}:tracks:${limit}` : null,
-    () => spotifyApi.getPlaylistTracks(playlistId!, limit),
+    playlistId ? `playlist:${playlistId}:tracks:all` : null,
+    () => spotifyApi.getAllPlaylistTracks(playlistId!),
     { enabled: !!playlistId, staleTime: COLLECTION_STALE_TIME }
   );
 }
