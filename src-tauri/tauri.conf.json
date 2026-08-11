@@ -64,7 +64,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM1NThERDFGQzFFNDc5NQpSV1NWUng3ODBZMVZBL2lwcjh2VkRvVlRFWmtYbXc4OXVFMlFTVlhTaVo2K25QQTVaNS8yL01ONgo=",
       "endpoints": [
-        "https://github.com/notzairdev/spotify-rework/releases/latest/download/latest.json"
+        "https://github.com/notzairdev/spotify-rework-dist/releases/latest/download/latest.json"
       ],
       "windows": {
         "installMode": "passive"
